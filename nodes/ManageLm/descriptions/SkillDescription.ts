@@ -1,0 +1,173 @@
+import type { INodeProperties } from 'n8n-workflow';
+
+export const skillOperations: INodeProperties[] = [
+	{
+		displayName: 'Operation',
+		name: 'operation',
+		type: 'options',
+		noDataExpression: true,
+		displayOptions: { show: { resource: ['skill'] } },
+		options: [
+			{ name: 'Create', value: 'create', description: 'Create a custom skill', action: 'Create a skill' },
+			{ name: 'Delete', value: 'delete', description: 'Delete a skill', action: 'Delete a skill' },
+			{ name: 'Get', value: 'get', description: 'Get a single skill', action: 'Get a skill' },
+			{ name: 'Get Many', value: 'getAll', description: 'List account skills', action: 'List all skills' },
+			{ name: 'Import from Catalog', value: 'importCatalog', description: 'Import skills from the catalog', action: 'Import catalog skills' },
+			{ name: 'List Catalog', value: 'catalog', description: 'List available catalog skills', action: 'List catalog skills' },
+			{ name: 'Update', value: 'update', description: 'Update a skill', action: 'Update a skill' },
+		],
+		default: 'getAll',
+	},
+];
+
+export const skillFields: INodeProperties[] = [
+	// ------ Skill ID (get, update, delete) ------
+	{
+		displayName: 'Skill ID',
+		name: 'skillId',
+		type: 'string',
+		required: true,
+		default: '',
+		description: 'ID or slug of the skill',
+		displayOptions: { show: { resource: ['skill'], operation: ['get', 'update', 'delete'] } },
+	},
+
+	// ------ Create fields ------
+	{
+		displayName: 'Slug',
+		name: 'slug',
+		type: 'string',
+		required: true,
+		default: '',
+		placeholder: 'my-custom-skill',
+		description: 'Unique slug (lowercase, hyphens, underscores)',
+		displayOptions: { show: { resource: ['skill'], operation: ['create'] } },
+	},
+	{
+		displayName: 'Name',
+		name: 'name',
+		type: 'string',
+		required: true,
+		default: '',
+		description: 'Display name of the skill',
+		displayOptions: { show: { resource: ['skill'], operation: ['create'] } },
+	},
+	{
+		displayName: 'Node Type',
+		name: 'nodeType',
+		type: 'string',
+		required: true,
+		default: 'custom',
+		description: 'Type of the skill node',
+		displayOptions: { show: { resource: ['skill'], operation: ['create'] } },
+	},
+	{
+		displayName: 'Description',
+		name: 'description',
+		type: 'string',
+		required: true,
+		default: '',
+		description: 'Description of what the skill does',
+		displayOptions: { show: { resource: ['skill'], operation: ['create'] } },
+	},
+	{
+		displayName: 'System Prompt',
+		name: 'systemPrompt',
+		type: 'string',
+		typeOptions: { rows: 6 },
+		required: true,
+		default: '',
+		description: 'System prompt for the LLM agent',
+		displayOptions: { show: { resource: ['skill'], operation: ['create'] } },
+	},
+	{
+		displayName: 'Allowed Commands',
+		name: 'allowedCommands',
+		type: 'string',
+		required: true,
+		default: '',
+		placeholder: 'ls, cat, df, free',
+		description: 'Comma-separated list of allowed shell commands',
+		displayOptions: { show: { resource: ['skill'], operation: ['create'] } },
+	},
+	{
+		displayName: 'Operations (JSON)',
+		name: 'operations',
+		type: 'string',
+		typeOptions: { rows: 4 },
+		default: '[]',
+		placeholder: '[{"name":"check","description":"Check status"}]',
+		description: 'JSON array of operations [{name, description}]',
+		displayOptions: { show: { resource: ['skill'], operation: ['create'] } },
+	},
+
+	// ------ Update fields ------
+	{
+		displayName: 'Update Fields',
+		name: 'updateFields',
+		type: 'collection',
+		placeholder: 'Add Field',
+		default: {},
+		displayOptions: { show: { resource: ['skill'], operation: ['update'] } },
+		options: [
+			{
+				displayName: 'Name',
+				name: 'name',
+				type: 'string',
+				default: '',
+				description: 'New display name',
+			},
+			{
+				displayName: 'Description',
+				name: 'description',
+				type: 'string',
+				default: '',
+				description: 'New description',
+			},
+			{
+				displayName: 'Version',
+				name: 'version',
+				type: 'string',
+				default: '',
+				description: 'New version string',
+			},
+			{
+				displayName: 'System Prompt',
+				name: 'systemPrompt',
+				type: 'string',
+				typeOptions: { rows: 6 },
+				default: '',
+				description: 'Updated system prompt',
+			},
+			{
+				displayName: 'Allowed Commands',
+				name: 'allowedCommands',
+				type: 'string',
+				default: '',
+				placeholder: 'ls, cat, df, free',
+				description: 'Comma-separated list of allowed shell commands',
+			},
+			{
+				displayName: 'Operations (JSON)',
+				name: 'operations',
+				type: 'string',
+				typeOptions: { rows: 4 },
+				default: '',
+				placeholder: '[{"name":"check","description":"Check status"}]',
+				description: 'JSON array of operations [{name, description}]',
+			},
+		],
+	},
+
+	// ------ Import from Catalog ------
+	{
+		displayName: 'Slugs',
+		name: 'slugs',
+		type: 'string',
+		required: true,
+		default: '',
+		placeholder: 'base, packages, services',
+		description: 'Comma-separated list of catalog skill slugs to import',
+		displayOptions: { show: { resource: ['skill'], operation: ['importCatalog'] } },
+	},
+];

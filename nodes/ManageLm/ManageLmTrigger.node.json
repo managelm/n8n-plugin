@@ -1,0 +1,15 @@
+{
+	"node": "n8n-nodes-managelm.manageLmTrigger",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["DevOps & Infrastructure"],
+	"resources": {
+		"primaryDocumentation": [
+			{ "url": "https://www.managelm.com/doc/" }
+		]
+	},
+	"alias": ["server", "linux", "webhook", "event", "alert"],
+	"subcategories": {
+		"DevOps & Infrastructure": ["Server Management"]
+	}
+}

@@ -1,0 +1,15 @@
+{
+	"node": "n8n-nodes-managelm.manageLm",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["DevOps & Infrastructure"],
+	"resources": {
+		"primaryDocumentation": [
+			{ "url": "https://www.managelm.com/doc/" }
+		]
+	},
+	"alias": ["server", "linux", "infrastructure", "sysadmin", "devops"],
+	"subcategories": {
+		"DevOps & Infrastructure": ["Server Management"]
+	}
+}
