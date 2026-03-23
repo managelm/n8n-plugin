@@ -89,8 +89,10 @@ export const taskFields: INodeProperties[] = [
 				name: 'status',
 				type: 'options',
 				options: [
+					{ name: 'Answered', value: 'answered' },
 					{ name: 'Completed', value: 'completed' },
 					{ name: 'Failed', value: 'failed' },
+					{ name: 'Needs Input', value: 'needs_input' },
 					{ name: 'Pending', value: 'pending' },
 					{ name: 'Running', value: 'running' },
 				],

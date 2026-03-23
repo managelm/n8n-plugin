@@ -50,6 +50,7 @@ export class ManageLmTrigger implements INodeType {
 					{ name: 'Agent Online', value: 'agent.online' },
 					{ name: 'Task Completed', value: 'task.completed' },
 					{ name: 'Task Failed', value: 'task.failed' },
+					{ name: 'Task Needs Input', value: 'task.needs_input' },
 				],
 				description: 'Which events should trigger the workflow',
 			},
