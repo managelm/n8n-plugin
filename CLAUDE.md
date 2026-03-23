@@ -19,3 +19,8 @@
 - Follow the n8n community node conventions (INodeType, INodeTypeDescription).
 - The trigger node auto-manages webhooks (create on activate, delete on deactivate).
 - All webhook deliveries are HMAC-verified.
+
+## Versioning
+
+- Version is in `package.json`. Use `./package.sh --patch|--minor|--major` to bump.
+- No separate changelog file — release notes go in the GitHub release description.
