@@ -71,6 +71,7 @@ Start a workflow when a ManageLM event occurs. The trigger automatically creates
 | `agent.offline` | An agent went offline |
 | `task.completed` | A task finished successfully |
 | `task.failed` | A task failed |
+| `task.needs_input` | A task needs user input to continue |
 
 Webhook payloads are verified using HMAC-SHA256 signatures.
 
