@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-managelm",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "n8n community node for ManageLM — manage Linux servers, run tasks, and monitor infrastructure from n8n workflows.",
   "keywords": [
     "n8n-community-node-package",
