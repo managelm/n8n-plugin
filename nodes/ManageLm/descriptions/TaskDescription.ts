@@ -9,7 +9,9 @@ export const taskOperations: INodeProperties[] = [
 		displayOptions: { show: { resource: ['task'] } },
 		options: [
 			{ name: 'Get', value: 'get', description: 'Get status of a task', action: 'Get a task' },
+			{ name: 'Get Changes', value: 'getChanges', description: 'View file changes made by a task', action: 'Get task changes' },
 			{ name: 'Get Many', value: 'getAll', description: 'List tasks', action: 'List tasks' },
+			{ name: 'Revert', value: 'revert', description: 'Revert file changes from a task', action: 'Revert a task' },
 			{ name: 'Submit', value: 'submit', description: 'Submit a task (run a skill on a server)', action: 'Submit a task' },
 		],
 		default: 'submit',
@@ -57,7 +59,7 @@ export const taskFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['task'], operation: ['submit'] } },
 	},
 
-	// ------ Get ------
+	// ------ Get / Get Changes / Revert ------
 	{
 		displayName: 'Task ID',
 		name: 'taskId',
@@ -65,7 +67,15 @@ export const taskFields: INodeProperties[] = [
 		required: true,
 		default: '',
 		description: 'ID of the task',
-		displayOptions: { show: { resource: ['task'], operation: ['get'] } },
+		displayOptions: { show: { resource: ['task'], operation: ['get', 'getChanges', 'revert'] } },
+	},
+	{
+		displayName: 'Full Diff',
+		name: 'fullDiff',
+		type: 'boolean',
+		default: false,
+		description: 'Whether to fetch the full unified diff from the agent (requires agent online)',
+		displayOptions: { show: { resource: ['task'], operation: ['getChanges'] } },
 	},
 
 	// ------ Get Many ------

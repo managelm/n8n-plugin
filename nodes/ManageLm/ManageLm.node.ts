@@ -20,6 +20,8 @@ import { notificationOperations, notificationFields } from './descriptions/Notif
 import { reportOperations, reportFields } from './descriptions/ReportDescription';
 import { apiKeyOperations, apiKeyFields } from './descriptions/ApiKeyDescription';
 import { dependencyOperations, dependencyFields } from './descriptions/DependencyDescription';
+import { searchOperations, searchFields } from './descriptions/SearchDescription';
+import { emailOperations, emailFields } from './descriptions/EmailDescription';
 
 export class ManageLm implements INodeType {
 	description: INodeTypeDescription = {
@@ -52,10 +54,12 @@ export class ManageLm implements INodeType {
 					{ name: 'API Key', value: 'apiKey' },
 					{ name: 'Audit Log', value: 'audit' },
 					{ name: 'Dependency', value: 'dependency' },
+					{ name: 'Email', value: 'email' },
 					{ name: 'Group', value: 'group' },
 					{ name: 'Inventory', value: 'inventory' },
 					{ name: 'Notification', value: 'notification' },
 					{ name: 'Report', value: 'report' },
+					{ name: 'Search', value: 'search' },
 					{ name: 'Security', value: 'security' },
 					{ name: 'Skill', value: 'skill' },
 					{ name: 'Task', value: 'task' },
@@ -87,6 +91,10 @@ export class ManageLm implements INodeType {
 			...apiKeyFields,
 			...dependencyOperations,
 			...dependencyFields,
+			...searchOperations,
+			...searchFields,
+			...emailOperations,
+			...emailFields,
 		],
 	};
 
@@ -183,6 +191,15 @@ export class ManageLm implements INodeType {
 						if (filters.status) qs.status = filters.status;
 						if (filters.limit) qs.limit = filters.limit;
 						responseData = await manageLmApiRequest.call(this, 'GET', '/tasks', {}, qs);
+					} else if (operation === 'getChanges') {
+						const taskId = this.getNodeParameter('taskId', i) as string;
+						const fullDiff = this.getNodeParameter('fullDiff', i, false) as boolean;
+						const qs: Record<string, string> = {};
+						if (fullDiff) qs.full_diff = 'true';
+						responseData = await manageLmApiRequest.call(this, 'GET', `/tasks/${taskId}/changes`, {}, qs);
+					} else if (operation === 'revert') {
+						const taskId = this.getNodeParameter('taskId', i) as string;
+						responseData = await manageLmApiRequest.call(this, 'POST', `/tasks/${taskId}/revert`);
 					}
 				}
 
@@ -455,6 +472,60 @@ export class ManageLm implements INodeType {
 					} else if (operation === 'delete') {
 						const apiKeyId = this.getNodeParameter('apiKeyId', i) as string;
 						responseData = await manageLmApiRequest.call(this, 'DELETE', `/api-keys/${apiKeyId}`);
+					}
+				}
+
+				// ========== SEARCH ==========
+				else if (resource === 'search') {
+					const query = this.getNodeParameter('query', i, '') as string;
+					const group = this.getNodeParameter('group', i, '') as string;
+					const qs: Record<string, string | number | boolean> = {};
+					if (query) qs.query = query;
+					if (group) qs.group = group;
+
+					if (operation === 'agents') {
+						const status = this.getNodeParameter('status', i, '') as string;
+						const cpuAbove = this.getNodeParameter('cpuAbove', i, 0) as number;
+						const memoryAbove = this.getNodeParameter('memoryAbove', i, 0) as number;
+						const diskAbove = this.getNodeParameter('diskAbove', i, 0) as number;
+						if (status) qs.status = status;
+						if (cpuAbove > 0) qs.cpu_above = cpuAbove;
+						if (memoryAbove > 0) qs.memory_above = memoryAbove;
+						if (diskAbove > 0) qs.disk_above = diskAbove;
+						responseData = await manageLmApiRequest.call(this, 'GET', '/search/agents', {}, qs);
+					} else if (operation === 'inventory') {
+						const category = this.getNodeParameter('category', i, '') as string;
+						const itemStatus = this.getNodeParameter('itemStatus', i, '') as string;
+						if (category) qs.category = category;
+						if (itemStatus) qs.status = itemStatus;
+						responseData = await manageLmApiRequest.call(this, 'GET', '/search/inventory', {}, qs);
+					} else if (operation === 'security') {
+						const severity = this.getNodeParameter('severity', i, '') as string;
+						const findingCategory = this.getNodeParameter('findingCategory', i, '') as string;
+						if (severity) qs.severity = severity;
+						if (findingCategory) qs.category = findingCategory;
+						responseData = await manageLmApiRequest.call(this, 'GET', '/search/security', {}, qs);
+					} else if (operation === 'sshKeys') {
+						const user = this.getNodeParameter('user', i, '') as string;
+						const unknownOnly = this.getNodeParameter('unknownOnly', i, false) as boolean;
+						if (user) qs.user = user;
+						if (unknownOnly) qs.unknown_only = 'true';
+						responseData = await manageLmApiRequest.call(this, 'GET', '/search/ssh-keys', {}, qs);
+					} else if (operation === 'sudoRules') {
+						const user = this.getNodeParameter('user', i, '') as string;
+						const nopasswdOnly = this.getNodeParameter('nopasswdOnly', i, false) as boolean;
+						if (user) qs.user = user;
+						if (nopasswdOnly) qs.nopasswd_only = 'true';
+						responseData = await manageLmApiRequest.call(this, 'GET', '/search/sudo-rules', {}, qs);
+					}
+				}
+
+				// ========== EMAIL ==========
+				else if (resource === 'email') {
+					if (operation === 'send') {
+						const subject = this.getNodeParameter('subject', i) as string;
+						const body = this.getNodeParameter('body', i) as string;
+						responseData = await manageLmApiRequest.call(this, 'POST', '/email', { subject, body });
 					}
 				}
 
