@@ -38,11 +38,13 @@ Perform actions on your ManageLM infrastructure.
 | Resource | Operations |
 |----------|------------|
 | **Agent** | List All, Get, Get Metrics, Get Stats, Get Skills, Assign Skill, Remove Skill, Update, Approve, Delete |
-| **Task** | Submit (run a skill), Get Status, List |
+| **Task** | Submit (run a skill), Get Status, Get Changes, Revert, List |
+| **Search** | Agents, Inventory, Security, SSH Keys, Sudo Rules |
 | **Skill** | List All, Get, List Catalog, Import from Catalog, Create, Update, Delete |
 | **Group** | List All, Create, Update, Delete, Get Agents, Set Agents, Add Agents, Get Members, Set Members, Set Skills |
 | **Security** | Get Audit, Trigger Audit, Remediate Findings, Export PDF |
 | **Inventory** | Get Report, Trigger Scan, Export PDF |
+| **Email** | Send |
 | **Account** | Get Info, Update Settings, Invite User |
 | **Audit Log** | List Entries |
 | **Notification** | List, Mark as Read, Clear |
@@ -105,6 +107,18 @@ Webhook payloads are verified using HMAC-SHA256 signatures.
 1. Schedule Trigger (weekly)
 2. ManageLM (Report > Export PDF)
 3. Email node (send PDF as attachment)
+
+**Search for servers with high disk usage:**
+1. ManageLM (Search > Agents, disk_above=80)
+2. IF node (check results)
+3. Slack / Email notification
+
+**Find which servers run nginx:**
+1. ManageLM (Search > Inventory, query="nginx")
+
+**Revert a failed change:**
+1. ManageLM (Task > Get Changes, taskId)
+2. ManageLM (Task > Revert, taskId)
 
 ## Development
 
