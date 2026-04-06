@@ -19,6 +19,11 @@ export async function manageLmApiRequest(
 	qs: Record<string, string | number | boolean> = {},
 ): Promise<any> {
 	const credentials = await this.getCredentials('manageLmApi');
+	if (!credentials?.portalUrl) {
+		throw new NodeApiError(this.getNode(), {
+			message: 'ManageLM credentials not configured. Add Portal URL and API Key in credentials.',
+		} as JsonObject);
+	}
 	const portalUrl = (credentials.portalUrl as string).replace(/\/+$/, '');
 
 	const options: IRequestOptions = {
@@ -78,7 +83,13 @@ export async function manageLmApiRequestAllItems(
 			break;
 		}
 		offset += limit;
-	} while (results.length < (response.total ?? results.length));
+	// Stop when: no total provided (single page), page was partial, or we have all items
+	} while (
+		response.total !== undefined &&
+		results.length < response.total &&
+		Array.isArray(response[dataKey]) &&
+		response[dataKey].length === limit
+	);
 
 	return results;
 }

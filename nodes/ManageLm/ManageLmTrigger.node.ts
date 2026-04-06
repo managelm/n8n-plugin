@@ -80,6 +80,9 @@ export class ManageLmTrigger implements INodeType {
 
 			async create(this: IHookFunctions): Promise<boolean> {
 				const webhookUrl = this.getNodeWebhookUrl('default') as string;
+				if (!webhookUrl) {
+					throw new NodeOperationError(this.getNode(), 'Failed to generate webhook URL — check your n8n base URL configuration');
+				}
 				const events = this.getNodeParameter('events') as string[];
 
 				if (events.length === 0) {
@@ -129,6 +132,7 @@ export class ManageLmTrigger implements INodeType {
 
 	async webhook(this: IWebhookFunctions): Promise<IWebhookResponseData> {
 		const req = this.getRequestObject();
+		const res = this.getResponseObject();
 		const body = req.body as { event?: string; timestamp?: string; data?: Record<string, unknown> };
 
 		// Verify HMAC signature if we have a secret
@@ -138,6 +142,7 @@ export class ManageLmTrigger implements INodeType {
 		if (secret) {
 			const signature = req.headers['x-webhook-signature'] as string | undefined;
 			if (!signature) {
+				res.status(403);
 				return { webhookResponse: 'Missing signature', workflowData: [] };
 			}
 
@@ -145,6 +150,7 @@ export class ManageLmTrigger implements INodeType {
 			const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
 
 			if (signature !== expected) {
+				res.status(403);
 				return { webhookResponse: 'Invalid signature', workflowData: [] };
 			}
 		}
