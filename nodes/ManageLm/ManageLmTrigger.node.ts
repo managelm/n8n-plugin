@@ -6,7 +6,7 @@ import type {
 	IWebhookResponseData,
 } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
-import { createHmac, randomBytes } from 'crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 
 import { manageLmApiRequest } from './GenericFunctions';
 
@@ -146,10 +146,16 @@ export class ManageLmTrigger implements INodeType {
 				return { webhookResponse: 'Missing signature', workflowData: [] };
 			}
 
-			const rawBody = JSON.stringify(body);
+			// Use raw request body to preserve original byte-for-byte content
+			// (JSON.stringify on parsed body can reorder keys / change whitespace)
+			const rawBody = (req as any).rawBody
+				? (req as any).rawBody.toString('utf-8')
+				: JSON.stringify(body);
 			const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
 
-			if (signature !== expected) {
+			// Constant-time comparison to prevent timing attacks
+			if (expected.length !== signature.length ||
+				!timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) {
 				res.status(403);
 				return { webhookResponse: 'Invalid signature', workflowData: [] };
 			}
