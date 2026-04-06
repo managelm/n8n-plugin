@@ -22,7 +22,6 @@ import { apiKeyOperations, apiKeyFields } from './descriptions/ApiKeyDescription
 import { dependencyOperations, dependencyFields } from './descriptions/DependencyDescription';
 import { searchOperations, searchFields } from './descriptions/SearchDescription';
 import { emailOperations, emailFields } from './descriptions/EmailDescription';
-import { pentestOperations, pentestFields } from './descriptions/PentestDescription';
 
 export class ManageLm implements INodeType {
 	description: INodeTypeDescription = {
@@ -59,7 +58,6 @@ export class ManageLm implements INodeType {
 					{ name: 'Group', value: 'group' },
 					{ name: 'Inventory', value: 'inventory' },
 					{ name: 'Notification', value: 'notification' },
-					{ name: 'Pentest', value: 'pentest' },
 					{ name: 'Report', value: 'report' },
 					{ name: 'Search', value: 'search' },
 					{ name: 'Security', value: 'security' },
@@ -97,8 +95,6 @@ export class ManageLm implements INodeType {
 			...searchFields,
 			...emailOperations,
 			...emailFields,
-			...pentestOperations,
-			...pentestFields,
 		],
 	};
 
@@ -521,40 +517,6 @@ export class ManageLm implements INodeType {
 						if (user) qs.user = user;
 						if (nopasswdOnly) qs.nopasswd_only = 'true';
 						responseData = await manageLmApiRequest.call(this, 'GET', '/search/sudo-rules', {}, qs);
-					}
-				}
-
-				// ========== PENTEST ==========
-				else if (resource === 'pentest') {
-					if (operation === 'getTests') {
-						responseData = await manageLmApiRequest.call(this, 'GET', '/pentest/tests');
-					} else if (operation === 'getCredits') {
-						responseData = await manageLmApiRequest.call(this, 'GET', '/pentest/credits');
-					} else if (operation === 'get') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'GET', `/pentest/${agentId}`);
-					} else if (operation === 'start') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						const testsStr = this.getNodeParameter('tests', i) as string;
-						const tests = testsStr.split(',').map((t: string) => t.trim()).filter(Boolean);
-						const targetUrlsStr = this.getNodeParameter('targetUrls', i, '') as string;
-						const targetUrls = targetUrlsStr ? targetUrlsStr.split(',').map((u: string) => u.trim()).filter(Boolean) : [];
-						const scheduledAt = this.getNodeParameter('scheduledAt', i, '') as string;
-						const body: Record<string, any> = { tests };
-						if (targetUrls.length > 0) body.target_urls = targetUrls;
-						if (scheduledAt) body.scheduled_at = scheduledAt;
-						responseData = await manageLmApiRequest.call(this, 'POST', `/pentest/${agentId}`, body);
-					} else if (operation === 'cancel') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'POST', `/pentest/${agentId}/cancel`);
-					} else if (operation === 'delete') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'DELETE', `/pentest/${agentId}`);
-					} else if (operation === 'getHistory') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'GET', `/pentest/history/${agentId}`);
-					} else if (operation === 'listDomains') {
-						responseData = await manageLmApiRequest.call(this, 'GET', '/pentest/domains');
 					}
 				}
 
