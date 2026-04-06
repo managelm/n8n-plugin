@@ -38,7 +38,7 @@ Perform actions on your ManageLM infrastructure.
 | Resource | Operations |
 |----------|------------|
 | **Agent** | List All, Get, Get Metrics, Get Stats, Get Skills, Assign Skill, Remove Skill, Update, Approve, Delete |
-| **Task** | Submit (run a skill), Get Status, Get Changes, Revert, List |
+| **Task** | Submit, Get Status, Get Changes, Revert, List |
 | **Search** | Agents, Inventory, Security, SSH Keys, Sudo Rules |
 | **Skill** | List All, Get, List Catalog, Import from Catalog, Create, Update, Delete |
 | **Group** | List All, Create, Update, Delete, Get Agents, Set Agents, Add Agents, Get Members, Set Members, Set Skills |
