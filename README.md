@@ -1,69 +1,89 @@
-# n8n-nodes-managelm
+<p align="center">
+  <a href="https://www.managelm.com">
+    <img src="https://www.managelm.com/assets/ManageLM.png" alt="ManageLM" height="50">
+  </a>
+</p>
 
-n8n community node for [ManageLM](https://www.managelm.com) — manage Linux servers, run tasks, and monitor infrastructure from n8n workflows.
+<h3 align="center">n8n Community Node</h3>
 
-## Installation
+<p align="center">
+  Manage Linux &amp; Windows servers, run tasks, and automate infrastructure from n8n workflows.
+</p>
 
-### Community Nodes (recommended)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
+  <a href="https://www.npmjs.com/package/n8n-nodes-managelm"><img src="https://img.shields.io/npm/v/n8n-nodes-managelm" alt="npm"></a>
+  <a href="https://www.managelm.com"><img src="https://img.shields.io/badge/website-managelm.com-cyan" alt="Website"></a>
+  <a href="https://www.managelm.com/plugins/n8n.html"><img src="https://img.shields.io/badge/docs-full%20documentation-green" alt="Docs"></a>
+</p>
 
-1. Open **Settings > Community Nodes** in your n8n instance.
-2. Search for `n8n-nodes-managelm`.
-3. Click **Install**.
+<p align="center">
+  <img src="assets/screenshot.png" alt="n8n workflow with ManageLM node — 51 actions for infrastructure automation" width="700">
+</p>
 
-### Manual
+---
+
+The `n8n-nodes-managelm` community node brings full ManageLM infrastructure management into n8n. Automate server tasks, react to events, run security audits, and build ops workflows — all connected to your ManageLM portal.
+
+## Features
+
+- **51 actions** — agents, tasks, search, skills, groups, security, inventory, reports, and more
+- **Event triggers** — start workflows on agent enrollment, online/offline, task completion/failure
+- **HMAC-verified webhooks** — secure event delivery with automatic webhook lifecycle
+- **Wait for completion** — block workflow execution until a server task finishes
+- **Cross-infrastructure search** — find agents, packages, services, security findings, SSH keys
+
+## Quick Start
+
+### 1. Install
+
+**Community Nodes (recommended):**
+
+1. Open **Settings > Community Nodes** in your n8n instance
+2. Search for `n8n-nodes-managelm`
+3. Click **Install**
+
+**Manual:**
 
 ```bash
 cd ~/.n8n
 npm install n8n-nodes-managelm
 ```
 
-Restart n8n after installing.
+### 2. Configure credentials
 
-## Authentication
+1. In your ManageLM portal, go to **Settings > API Keys**
+2. Create a new key (`mlm_ak_...`)
+3. In n8n, create a **ManageLM API** credential with your portal URL and API key
 
-This node uses **ManageLM API Keys** for authentication.
+### 3. Build a workflow
 
-1. Log into your ManageLM portal.
-2. Go to **Settings > API Keys**.
-3. Click **Create API Key** and select the permissions you need.
-4. Copy the key (starts with `mlm_ak_`).
-5. In n8n, create a new **ManageLM API** credential with your portal URL and API key.
+Drag the **ManageLM** node into your canvas and pick an action.
 
 ## Nodes
 
-### ManageLM
-
-Perform actions on your ManageLM infrastructure.
+### ManageLM (Action)
 
 | Resource | Operations |
 |----------|------------|
-| **Agent** | List All, Get, Get Metrics, Get Stats, Get Skills, Assign Skill, Remove Skill, Update, Approve, Delete |
+| **Agent** | List All, Get, Metrics, Stats, Skills, Assign/Remove Skill, Update, Approve, Delete |
 | **Task** | Submit, Get Status, Get Changes, Revert, List |
 | **Search** | Agents, Inventory, Security, SSH Keys, Sudo Rules |
-| **Skill** | List All, Get, List Catalog, Import from Catalog, Create, Update, Delete |
-| **Group** | List All, Create, Update, Delete, Get Agents, Set Agents, Add Agents, Get Members, Set Members, Set Skills |
-| **Security** | Get Audit, Trigger Audit, Remediate Findings, Export PDF |
+| **Skill** | List, Get, Catalog, Import, Create, Update, Delete |
+| **Group** | List, Create, Update, Delete, Agents, Members, Skills |
+| **Security** | Get Audit, Trigger Audit, Remediate, Export PDF |
 | **Inventory** | Get Report, Trigger Scan, Export PDF |
-| **Email** | Send |
-| **Account** | Get Info, Update Settings, Invite User |
-| **Audit Log** | List Entries |
-| **Notification** | List, Mark as Read, Clear |
 | **Report** | List Operations, Export PDF |
+| **Account** | Get Info, Update, Invite User |
 | **API Key** | List, Create, Delete |
+| **Email** | Send |
+| **Audit Log** | List Entries |
+| **Notification** | List, Read, Clear |
 | **Dependency** | Trigger Scan, Get Results |
-
-#### Submitting a Task
-
-The **Task > Submit** operation is the primary way to interact with your servers. It runs a ManageLM skill on a target agent:
-
-- **Agent ID** — the server to run the task on
-- **Skill** — the skill slug (e.g. `base`, `packages`, `services`, `security`)
-- **Instruction** — free-text description of what to do
-- **Wait for Completion** — block until the task finishes (recommended for workflows)
 
 ### ManageLM Trigger
 
-Start a workflow when a ManageLM event occurs. The trigger automatically creates and manages a webhook in your ManageLM portal.
+Start a workflow when a ManageLM event occurs:
 
 | Event | Description |
 |-------|-------------|
@@ -73,81 +93,57 @@ Start a workflow when a ManageLM event occurs. The trigger automatically creates
 | `agent.offline` | An agent went offline |
 | `task.completed` | A task finished successfully |
 | `task.failed` | A task failed |
-| `task.needs_input` | A task needs user input to continue |
-
-Webhook payloads are verified using HMAC-SHA256 signatures.
+| `task.needs_input` | A task needs user input |
 
 ## Example Workflows
 
-**Auto-approve new agents and run a security audit:**
-1. ManageLM Trigger (event: `agent.enrolled`)
-2. ManageLM (Agent > Approve)
-3. ManageLM (Security > Trigger Audit)
+**Auto-approve agents and audit:**
+1. ManageLM Trigger (`agent.enrolled`) > Approve > Trigger Security Audit
 
-**Alert on server going offline:**
-1. ManageLM Trigger (event: `agent.offline`)
-2. Slack / Email / PagerDuty node
+**Alert on server offline:**
+1. ManageLM Trigger (`agent.offline`) > Slack / Email / PagerDuty
 
 **Scheduled package updates:**
-1. Schedule Trigger (weekly)
-2. ManageLM (Task > Submit: skill `packages`, instruction "Update all packages")
+1. Schedule Trigger (weekly) > Task Submit (`packages`, "Update all packages")
 
-**Inventory report to Google Sheets:**
-1. Schedule Trigger (daily)
-2. ManageLM (Agent > List All)
-3. ManageLM (Inventory > Get Report) for each agent
-4. Google Sheets (append rows)
+**Inventory to Google Sheets:**
+1. Schedule (daily) > List Agents > Get Inventory > Append to Sheets
 
-**Auto-remediate security findings:**
-1. ManageLM (Security > Get Audit)
-2. IF node (check for critical findings)
-3. ManageLM (Security > Remediate)
+**Auto-remediate critical findings:**
+1. Get Security Audit > IF critical > Remediate
 
-**Weekly operations report by email:**
-1. Schedule Trigger (weekly)
-2. ManageLM (Report > Export PDF)
-3. Email node (send PDF as attachment)
-
-**Search for servers with high disk usage:**
-1. ManageLM (Search > Agents, disk_above=80)
-2. IF node (check results)
-3. Slack / Email notification
-
-**Find which servers run nginx:**
-1. ManageLM (Search > Inventory, query="nginx")
-
-**Revert a failed change:**
-1. ManageLM (Task > Get Changes, taskId)
-2. ManageLM (Task > Revert, taskId)
+**Find servers with high disk:**
+1. Search Agents (`disk_above=80`) > IF results > Notify
 
 ## Development
 
 ```bash
-# Install dependencies
-npm install
-
-# Build
-npm run build
-
-# Link into a local n8n instance
-npm link
-cd ~/.n8n && npm link n8n-nodes-managelm
-
-# Watch mode
-npm run dev
+npm install          # install dependencies
+npm run build        # compile TypeScript
+npm run dev          # watch mode
+npm link             # link into local n8n
 ```
 
 ## Requirements
 
 - **n8n** v1.0+
-- A [ManageLM](https://www.managelm.com) account with API key access (admin role required)
+- **ManageLM account** — [sign up free](https://app.managelm.com/register) (up to 10 agents)
+- **API Key** — admin role required
+
+## Other Integrations
+
+- [Claude Code Extension](https://github.com/managelm/claude-extension) — MCP integration for Claude
+- [VS Code Extension](https://github.com/managelm/vscode-extension) — `@managelm` in Copilot Chat
+- [ChatGPT Plugin](https://github.com/managelm/openai-gpt) — manage servers from ChatGPT
+- [Slack Plugin](https://github.com/managelm/slack-plugin) — notifications and commands in Slack
+- [OpenClaw Plugin](https://github.com/managelm/openclaw-plugin) — OpenClaw integration
 
 ## Links
 
-- [ManageLM Website](https://www.managelm.com)
-- [Documentation](https://www.managelm.com/doc/)
-- [GitHub](https://github.com/managelm/n8n-plugin)
+- [Website](https://www.managelm.com)
+- [Full Documentation](https://www.managelm.com/plugins/n8n.html)
+- [Portal](https://app.managelm.com)
 
 ## License
 
-[MIT](LICENSE)
+[Apache 2.0](LICENSE)
