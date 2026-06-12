@@ -103,4 +103,4 @@ fi
 
 # Restore ownership (scripts may run as root)
 [[ "$(pwd)" == "/" ]] && { echo "FATAL: pwd is /"; exit 1; }
-chown -R claude:claude "$(pwd)"
+[ "$(id -u)" -eq 0 ] && chown -R "$(stat -c '%U:%G' "$(pwd)")" "$(pwd)" || true
