@@ -2,7 +2,8 @@
 const { src, dest } = require('gulp');
 
 function buildIcons() {
-  return src('nodes/**/*.{svg,png,json}').pipe(dest('dist/nodes'));
+  // encoding: false — gulp 5 defaults to utf8 decoding, which corrupts PNGs
+  return src('nodes/**/*.{svg,png,json}', { encoding: false }).pipe(dest('dist/nodes'));
 }
 
 exports['build:icons'] = buildIcons;
