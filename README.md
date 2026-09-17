@@ -18,20 +18,20 @@
 </p>
 
 <p align="center">
-  <img src="assets/screenshot.png" alt="n8n workflow with ManageLM node — 51 actions for infrastructure automation" width="700">
+  <img src="assets/screenshot.png" alt="n8n workflow with the ManageLM node" width="700">
 </p>
 
 ---
 
-The `n8n-nodes-managelm` community node brings full ManageLM infrastructure management into n8n. Automate server tasks, react to events, run security audits, and build ops workflows — all connected to your ManageLM portal.
+The `n8n-nodes-managelm` community node brings ManageLM into n8n. Run tasks and scans on your servers, search the whole fleet, act on hosting resources, and react to events — the same features ManageLM exposes to Claude through MCP.
 
 ## Features
 
-- **51 actions** — agents, tasks, search, skills, groups, security, inventory, reports, and more
-- **Event triggers** — start workflows on agent enrollment, online/offline, task completion/failure
-- **HMAC-verified webhooks** — secure event delivery with automatic webhook lifecycle
-- **Wait for completion** — block workflow execution until a server task finishes
-- **Cross-infrastructure search** — find agents, packages, services, security findings, SSH keys
+- **34 actions** — tasks, scans, 14 fleet searches, hosting actions, agents, skills, account, email
+- **Event triggers** — start workflows on any ManageLM event: agents, tasks, reports, monitors, backups, certificates, credentials, keystore, pentests, console / desktop / file sessions
+- **HMAC-verified webhooks** — every delivery is checked against your webhook secret, and old deliveries are refused
+- **Wait for completion** — wait for a task up to a limit you choose; longer tasks return their ID to poll
+- **Cross-infrastructure search** — agents, inventory, security issues, activity, SSH keys, sudo rules, certificates, monitors, backups, credentials, keystore, cloud resources
 
 ## Quick Start
 
@@ -52,9 +52,13 @@ npm install n8n-nodes-managelm
 
 ### 2. Configure credentials
 
-1. In your ManageLM portal, go to **Settings > API Keys**
-2. Create a new key (`mlm_ak_...`)
-3. In n8n, create a **ManageLM API** credential with your portal URL and API key
+1. In your ManageLM portal, go to **Settings > MCP & API > API Keys**
+2. Create a key (`mlm_ak_...`) and tick the authorizations your workflows need — for example **Reports** to start scans, **Hosting** for VM actions, **Credentials** / **Keystore** to search those
+3. In n8n, create a **ManageLM API** credential with your portal URL and API key, then click **Test**
+
+A key acts as you: it sees the servers you can see and can do what you can do, limited to the authorizations you gave it. Any user can create keys. Keys cover the same features as MCP; portal settings and management (users, API keys, webhooks, creating or deleting agents, skills and groups) stay in the portal.
+
+The **ManageLM Trigger** uses a separate **ManageLM Webhook** credential that holds the webhook secret — see [ManageLM Trigger](#managelm-trigger).
 
 ### 3. Build a workflow
 
@@ -66,39 +70,49 @@ Drag the **ManageLM** node into your canvas and pick an action.
 
 | Resource | Operations |
 |----------|------------|
-| **Agent** | List All, Get, Metrics, Stats, Skills, Assign/Remove Skill, Update, Approve, Delete |
-| **Task** | Submit, Get Status, Get Changes, Revert, List |
-| **Search** | Agents, Inventory, Security, SSH Keys, Sudo Rules |
-| **Skill** | List, Get, Catalog, Import, Create, Update, Delete |
-| **Group** | List, Create, Update, Delete, Agents, Members, Skills |
-| **Security** | Get Audit, Trigger Audit, Remediate, Export PDF |
-| **Inventory** | Get Report, Trigger Scan, Export PDF |
-| **Report** | List Operations, Export PDF |
-| **Account** | Get Info, Update, Invite User |
-| **API Key** | List, Create, Delete |
+| **Task** | Submit, Get, Get Many, Get Changes, Revert, Answer, Follow Up |
+| **Scan** | Start, Get Result — for Security Audit, Inventory, Access (SSH keys & sudo), Certificates, Activity |
+| **Search** | Agents, Inventory, Security, Activity, SSH Keys, Sudo Rules, Certificates (Discovered), Certificates (Managed), Monitors, Backups, Credentials, Keystore, Hosting Connectors, Cloud Resources |
+| **Hosting** | Get Actions, Run Action |
+| **Agent** | Get Many, Get, Get Skills |
+| **Skill** | Get Many, Get Catalog |
+| **Account** | Get, Get Groups, Get Sites |
 | **Email** | Send |
-| **Audit Log** | List Entries |
-| **Notification** | List, Read, Clear |
-| **Dependency** | Trigger Scan, Get Results |
+
+**Waiting for tasks.** Submit, Answer and Follow Up wait up to **Max Wait** seconds (default 120). A task that is still running then comes back as `{ task_id, still_running: true }` — loop on **Task > Get** until its status is `completed`, `failed`, `needs_input` or `timeout` (a task that never reports back is marked `timeout` after 10 minutes).
+
+**Search results.** A search, or a Get Many, returns one item holding the result array — for example `agents` for Search Agents, `items` for Search Inventory, `findings` for Search Security. Add a **Split Out** node on that field to handle the rows one by one.
+
+**Hosting actions.** Run Action executes as soon as the node runs, with no confirmation step — including disruptive actions such as stop, shutdown and reboot.
 
 ### ManageLM Trigger
 
-Start a workflow when a ManageLM event occurs:
+Start a workflow when a ManageLM event occurs. Webhooks are created by an admin in the portal:
 
-| Event | Description |
-|-------|-------------|
-| `agent.enrolled` | A new agent requests to join |
-| `agent.approved` | An agent was approved |
-| `agent.online` | An agent came online |
-| `agent.offline` | An agent went offline |
-| `task.completed` | A task finished successfully |
-| `task.failed` | A task failed |
-| `task.needs_input` | A task needs user input |
+1. Add a **ManageLM Trigger** node and copy its **Production URL**
+2. In the portal, go to **Settings > MCP & API > Webhooks**, paste the URL, choose the event categories and set an **HMAC secret**
+3. In the trigger node, create a **ManageLM Webhook** credential with the same secret
+4. Optionally pick the exact events to react to (empty = every event the webhook receives)
+
+Deliveries without a valid signature, or whose signed timestamp is more than 5 minutes off the n8n host's clock, are rejected with `403` and show as failed on the webhook in the portal. Keep the n8n host's clock in sync (NTP).
+
+| Category | Events |
+|----------|--------|
+| Agent | `agent.enrolled`, `agent.approved`, `agent.online`, `agent.offline` |
+| Task | `task.completed`, `task.failed`, `task.needs_input` |
+| Report | `report.completed`, `report.failed`, `report.stalled` |
+| Monitor | `monitor.down`, `monitor.up`, `monitor.stalled`, `monitor.created`, `monitor.deleted` |
+| Backup | `backup.completed`, `backup.failed` |
+| Certificate | `cert.issued`, `cert.renewed`, `cert.renewal_failed`, `cert.revoked`, `cert.reactivated`, `cert.deleted` |
+| Credential | `credential.rotated`, `credential.rotation_failed` |
+| Keystore | `keystore.access_denied`, `keystore.key_deleted` |
+| Pentest | `pentest.completed`, `pentest.failed` |
+| Sessions | `console.opened`, `console.closed`, `desktop.opened`, `desktop.closed`, `files.opened` |
 
 ## Example Workflows
 
-**Auto-approve agents and audit:**
-1. ManageLM Trigger (`agent.enrolled`) > Approve > Trigger Security Audit
+**Diagnose a down service:**
+1. ManageLM Trigger (`monitor.down`) > Task Submit (Agent ID `{{ $json.agent_id }}`, skill `base`, "Find out why {{ $json.monitor_name }} is down") > Slack / Email with the task summary
 
 **Alert on server offline:**
 1. ManageLM Trigger (`agent.offline`) > Slack / Email / PagerDuty
@@ -107,13 +121,28 @@ Start a workflow when a ManageLM event occurs:
 1. Schedule Trigger (weekly) > Task Submit (`packages`, "Update all packages")
 
 **Inventory to Google Sheets:**
-1. Schedule (daily) > List Agents > Get Inventory > Append to Sheets
+1. Schedule (daily) > Search Inventory > Split Out (`items`) > Append to Sheets
 
-**Auto-remediate critical findings:**
-1. Get Security Audit > IF critical > Remediate
+**Ticket on a failed backup or rotation:**
+1. ManageLM Trigger (`backup.failed`, `credential.rotation_failed`) > Jira / ServiceNow
 
 **Find servers with high disk:**
-1. Search Agents (`disk_above=80`) > IF results > Notify
+1. Search Agents (`Disk Above % = 80`) > Split Out (`agents`) > Notify for each server
+
+## Upgrading from 1.0.x
+
+This release aligns the node with what ManageLM API keys can reach: the same features as MCP. Workflows saved with 1.0.x keep their parameters, with these exceptions:
+
+- **Removed operations** — they stop with an error naming the operation; pick a current one:
+  - Agent: Approve, Update, Delete, Assign / Remove Skill, Get Metrics, Get Stats
+  - Skill: Get, Create, Update, Delete, Import
+  - Account: Update, Invite User
+  - Security: Remediate, Export PDF · Inventory: Export PDF
+  - Resources API Key, Audit Log, Dependency, Group, Notification and Report (list groups with **Account > Get Groups**)
+- **Security / Inventory moved to Scan** — Get Audit / Get Report become **Scan > Get Result**, Trigger Audit / Trigger Scan become **Scan > Start**, with the matching **Scan Type**
+- **Search Inventory categories** — Service, Package and Hardware no longer exist; pick one of the current categories
+- **Task wait** — Wait for Completion now waits up to Max Wait and then returns the task ID with `still_running: true` instead of failing
+- **ManageLM Trigger** — it no longer creates webhooks. Create one in the portal and a ManageLM Webhook credential as described above, then delete the webhooks 1.0.x created (Settings > MCP & API > Webhooks)
 
 ## Development
 
@@ -128,7 +157,7 @@ npm link             # link into local n8n
 
 - **n8n** v1.0+
 - **ManageLM account** — [sign up free](https://app.managelm.com/register) (up to 10 agents)
-- **API Key** — admin role required
+- **API Key** — created by any user in Settings > MCP & API (webhooks for the trigger are set up by an admin)
 
 ## Other Integrations
 

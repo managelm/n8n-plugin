@@ -1,5 +1,6 @@
 import type {
 	IAuthenticateGeneric,
+	ICredentialTestRequest,
 	ICredentialType,
 	INodeProperties,
 } from 'n8n-workflow';
@@ -26,7 +27,7 @@ export class ManageLmApi implements ICredentialType {
 			typeOptions: { password: true },
 			default: '',
 			placeholder: 'mlm_ak_...',
-			description: 'API key created in Portal > Settings > API Keys',
+			description: 'API key created in Portal > Settings > MCP & API. It acts as you, limited to the authorizations you give it.',
 			required: true,
 		},
 	];
@@ -37,6 +38,14 @@ export class ManageLmApi implements ICredentialType {
 			headers: {
 				Authorization: '=Bearer {{$credentials.apiKey}}',
 			},
+		},
+	};
+
+	// "Test" in the credential dialog: any key can read its own account.
+	test: ICredentialTestRequest = {
+		request: {
+			baseURL: '={{$credentials.portalUrl.replace(/\\/+$/, "")}}/api',
+			url: '/account',
 		},
 	};
 }

@@ -1,7 +1,7 @@
 {
   "name": "n8n-nodes-managelm",
   "version": "1.0.2",
-  "description": "n8n community node for ManageLM — manage Linux servers, run tasks, and monitor infrastructure from n8n workflows.",
+  "description": "n8n community node for ManageLM — manage Linux and Windows servers, run tasks, and monitor infrastructure from n8n workflows.",
   "keywords": [
     "n8n-community-node-package",
     "n8n",
@@ -11,7 +11,7 @@
     "infrastructure",
     "devops"
   ],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "homepage": "https://www.managelm.com",
   "repository": {
     "type": "git",
@@ -30,7 +30,8 @@
   "n8n": {
     "n8nNodesApiVersion": 1,
     "credentials": [
-      "dist/credentials/ManageLmApi.credentials.js"
+      "dist/credentials/ManageLmApi.credentials.js",
+      "dist/credentials/ManageLmWebhookApi.credentials.js"
     ],
     "nodes": [
       "dist/nodes/ManageLm/ManageLm.node.js",

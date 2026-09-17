@@ -1,6 +1,9 @@
 import type {
+	IDataObject,
 	IExecuteFunctions,
 	INodeExecutionData,
+	INodeProperties,
+	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
 } from 'n8n-workflow';
@@ -10,18 +13,56 @@ import { manageLmApiRequest } from './GenericFunctions';
 
 import { agentOperations, agentFields } from './descriptions/AgentDescription';
 import { taskOperations, taskFields } from './descriptions/TaskDescription';
-import { skillOperations, skillFields } from './descriptions/SkillDescription';
-import { groupOperations, groupFields } from './descriptions/GroupDescription';
-import { securityOperations, securityFields } from './descriptions/SecurityDescription';
-import { inventoryOperations, inventoryFields } from './descriptions/InventoryDescription';
-import { accountOperations, accountFields } from './descriptions/AccountDescription';
-import { auditOperations, auditFields } from './descriptions/AuditDescription';
-import { notificationOperations, notificationFields } from './descriptions/NotificationDescription';
-import { reportOperations, reportFields } from './descriptions/ReportDescription';
-import { apiKeyOperations, apiKeyFields } from './descriptions/ApiKeyDescription';
-import { dependencyOperations, dependencyFields } from './descriptions/DependencyDescription';
+import { scanOperations, scanFields } from './descriptions/ScanDescription';
 import { searchOperations, searchFields } from './descriptions/SearchDescription';
+import { hostingOperations, hostingFields } from './descriptions/HostingDescription';
+import { skillOperations, skillFields } from './descriptions/SkillDescription';
+import { accountOperations, accountFields } from './descriptions/AccountDescription';
 import { emailOperations, emailFields } from './descriptions/EmailDescription';
+
+/**
+ * Node parameter → query-string key, per search operation. Common filters
+ * (query, group, site, agent, user, since, until) are read for every operation
+ * and simply absent where the operation does not show them.
+ *
+ * `bool` parameters are sent only when they differ from the portal default:
+ * `unresolved` defaults to true there, the `*_only` flags to false.
+ */
+const SEARCH_PARAMS: Record<string, Array<[param: string, key: string, kind?: 'bool' | 'boolFalse' | 'positive']>> = {
+	agents: [['status', 'status'], ['cpuAbove', 'cpu_above', 'positive'], ['memoryAbove', 'memory_above', 'positive'], ['diskAbove', 'disk_above', 'positive']],
+	inventory: [['category', 'category'], ['itemStatus', 'status']],
+	security: [['securitySource', 'source'], ['severity', 'severity'], ['findingCategory', 'category'], ['unresolved', 'unresolved', 'boolFalse']],
+	activity: [['activityCategory', 'category']],
+	sshKeys: [['unknownOnly', 'unknown_only', 'bool']],
+	sudoRules: [['nopasswdOnly', 'nopasswd_only', 'bool']],
+	certs: [['certState', 'status'], ['path', 'path']],
+	pki: [['pkiStatus', 'status'], ['pkiSource', 'source']],
+	monitors: [['monitorStatus', 'status'], ['slug', 'slug']],
+	backups: [['backupStatus', 'status']],
+	credentials: [['credentialState', 'state'], ['credentialType', 'type']],
+	keystore: [['view', 'view']],
+	cloud: [['resourceType', 'type'], ['provider', 'provider'], ['cloudStatus', 'status'], ['connector', 'connector'], ['unmatched', 'unmatched', 'bool']],
+	connectors: [],
+};
+
+/** Operations whose value is not their /api/search route segment (kept from 1.0). */
+const SEARCH_PATHS: Record<string, string> = { sshKeys: 'ssh-keys', sudoRules: 'sudo-rules' };
+
+const COMMON_SEARCH_PARAMS = ['query', 'group', 'site', 'agent', 'user', 'since', 'until'];
+
+/**
+ * resource → the operation values the node runs, read from the operation
+ * selectors so it cannot drift from the UI. A workflow saved with 1.0 can still
+ * hold a resource or operation that was removed (API keys cannot reach it); it
+ * must fail loudly rather than output an empty item.
+ */
+const OPERATIONS: Record<string, string[]> = Object.fromEntries(
+	[agentOperations, taskOperations, scanOperations, searchOperations, hostingOperations, skillOperations, accountOperations, emailOperations]
+		.map(([selector]: INodeProperties[]) => [
+			(selector.displayOptions?.show?.resource as string[])[0],
+			(selector.options as INodePropertyOptions[]).map((option) => option.value as string),
+		]),
+);
 
 export class ManageLm implements INodeType {
 	description: INodeTypeDescription = {
@@ -31,7 +72,7 @@ export class ManageLm implements INodeType {
 		group: ['transform'],
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Manage Linux servers through ManageLM',
+		description: 'Run tasks, scans and searches across your Linux and Windows servers with ManageLM',
 		defaults: { name: 'ManageLM' },
 		inputs: ['main'],
 		outputs: ['main'],
@@ -41,6 +82,10 @@ export class ManageLm implements INodeType {
 				required: true,
 			},
 		],
+		// The portal API covers the same features as the ManageLM MCP server:
+		// reading the fleet, running tasks and scans, searches, hosting actions.
+		// Portal settings and management (users, keys, webhooks, create/update/
+		// delete of agents, skills, groups) are not available to API keys.
 		properties: [
 			// ------ Resource selector ------
 			{
@@ -51,16 +96,10 @@ export class ManageLm implements INodeType {
 				options: [
 					{ name: 'Account', value: 'account' },
 					{ name: 'Agent', value: 'agent' },
-					{ name: 'API Key', value: 'apiKey' },
-					{ name: 'Audit Log', value: 'audit' },
-					{ name: 'Dependency', value: 'dependency' },
 					{ name: 'Email', value: 'email' },
-					{ name: 'Group', value: 'group' },
-					{ name: 'Inventory', value: 'inventory' },
-					{ name: 'Notification', value: 'notification' },
-					{ name: 'Report', value: 'report' },
+					{ name: 'Hosting', value: 'hosting' },
+					{ name: 'Scan', value: 'scan' },
 					{ name: 'Search', value: 'search' },
-					{ name: 'Security', value: 'security' },
 					{ name: 'Skill', value: 'skill' },
 					{ name: 'Task', value: 'task' },
 				],
@@ -71,28 +110,16 @@ export class ManageLm implements INodeType {
 			...agentFields,
 			...taskOperations,
 			...taskFields,
-			...skillOperations,
-			...skillFields,
-			...groupOperations,
-			...groupFields,
-			...securityOperations,
-			...securityFields,
-			...inventoryOperations,
-			...inventoryFields,
-			...accountOperations,
-			...accountFields,
-			...auditOperations,
-			...auditFields,
-			...notificationOperations,
-			...notificationFields,
-			...reportOperations,
-			...reportFields,
-			...apiKeyOperations,
-			...apiKeyFields,
-			...dependencyOperations,
-			...dependencyFields,
+			...scanOperations,
+			...scanFields,
 			...searchOperations,
 			...searchFields,
+			...hostingOperations,
+			...hostingFields,
+			...skillOperations,
+			...skillFields,
+			...accountOperations,
+			...accountFields,
 			...emailOperations,
 			...emailFields,
 		],
@@ -103,11 +130,28 @@ export class ManageLm implements INodeType {
 		const returnData: INodeExecutionData[] = [];
 
 		const resource = this.getNodeParameter('resource', 0) as string;
-		const operation = this.getNodeParameter('operation', 0) as string;
+		// Fallback '': a removed resource has no operation selector left to read.
+		const operation = this.getNodeParameter('operation', 0, '') as string;
+		if (!OPERATIONS[resource]?.includes(operation)) {
+			const name = operation ? `${resource} > ${operation}` : resource;
+			throw new NodeOperationError(
+				this.getNode(),
+				`The operation "${name}" no longer exists in this version of the ManageLM node`,
+				{ description: 'Open the node and pick one of the current operations. See "Upgrading from 1.0.x" in the node README.' },
+			);
+		}
 
 		for (let i = 0; i < items.length; i++) {
 			try {
 				let responseData: any;
+
+				// Tasks that dispatch to an agent can wait for the outcome. The portal
+				// waits at most wait_seconds and then answers 202 with the task ID
+				// (still_running: true) instead of holding the request open.
+				const waitQs = (): Record<string, number> => {
+					const wait = this.getNodeParameter('wait', i, true) as boolean;
+					return wait ? { wait_seconds: this.getNodeParameter('waitSeconds', i, 120) as number } : {};
+				};
 
 				// ========== AGENT ==========
 				if (resource === 'agent') {
@@ -116,50 +160,9 @@ export class ManageLm implements INodeType {
 					} else if (operation === 'get') {
 						const agentId = this.getNodeParameter('agentId', i) as string;
 						responseData = await manageLmApiRequest.call(this, 'GET', `/agents/${agentId}`);
-					} else if (operation === 'getMetrics') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'GET', `/agents/${agentId}/metrics`);
-					} else if (operation === 'approve') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'POST', `/agents/${agentId}/approve`);
-					} else if (operation === 'delete') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'DELETE', `/agents/${agentId}`);
-					} else if (operation === 'update') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						const updateFields = this.getNodeParameter('updateFields', i, {}) as Record<string, any>;
-						const body: Record<string, any> = {};
-						// Copy simple fields
-						for (const key of ['display_name', 'auto_update', 'llm_api_url', 'llm_api_key', 'llm_model', 'audit_schedule', 'inventory_schedule']) {
-							if (updateFields[key] !== undefined && updateFields[key] !== '') {
-								body[key] = key.endsWith('_schedule') && updateFields[key] === '' ? null : updateFields[key];
-							}
-						}
-						// Convert comma-separated tags to array
-						if (updateFields.tags) {
-							body.tags = (updateFields.tags as string).split(',').map((t: string) => t.trim()).filter(Boolean);
-						}
-						// Convert comma-separated group_ids to array
-						if (updateFields.group_ids) {
-							body.group_ids = (updateFields.group_ids as string).split(',').map((id: string) => id.trim()).filter(Boolean);
-						}
-						responseData = await manageLmApiRequest.call(this, 'PATCH', `/agents/${agentId}`, body);
 					} else if (operation === 'getSkills') {
 						const agentId = this.getNodeParameter('agentId', i) as string;
 						responseData = await manageLmApiRequest.call(this, 'GET', `/agents/${agentId}/skills`);
-					} else if (operation === 'assignSkill') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						const skillId = this.getNodeParameter('skillId', i) as string;
-						const additionalFields = this.getNodeParameter('additionalFields', i, {}) as Record<string, any>;
-						const body: Record<string, any> = { skill_id: skillId };
-						if (additionalFields.llm_model) body.llm_model = additionalFields.llm_model;
-						responseData = await manageLmApiRequest.call(this, 'POST', `/agents/${agentId}/skills`, body);
-					} else if (operation === 'removeSkill') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						const skillId = this.getNodeParameter('skillId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'DELETE', `/agents/${agentId}/skills/${skillId}`);
-					} else if (operation === 'getStats') {
-						responseData = await manageLmApiRequest.call(this, 'GET', '/agents/stats');
 					}
 				}
 
@@ -169,37 +172,93 @@ export class ManageLm implements INodeType {
 						const agentId = this.getNodeParameter('agentId', i) as string;
 						const skillSlug = this.getNodeParameter('skillSlug', i) as string;
 						const instruction = this.getNodeParameter('instruction', i) as string;
-						const wait = this.getNodeParameter('wait', i) as boolean;
-
-						const qs: Record<string, string | boolean> = {};
-						if (wait) qs.wait = true;
-
 						responseData = await manageLmApiRequest.call(
-							this,
-							'POST',
-							'/tasks',
-							{ agent_id: agentId, skill_slug: skillSlug, instruction },
-							qs,
+							this, 'POST', '/tasks', { agent_id: agentId, skill_slug: skillSlug, instruction }, waitQs(),
 						);
+					} else if (operation === 'answer') {
+						const taskId = this.getNodeParameter('taskId', i) as string;
+						const answer = this.getNodeParameter('answer', i) as string;
+						responseData = await manageLmApiRequest.call(this, 'POST', `/tasks/${taskId}/answer`, { answer }, waitQs());
+					} else if (operation === 'followUp') {
+						const taskId = this.getNodeParameter('taskId', i) as string;
+						const instruction = this.getNodeParameter('instruction', i) as string;
+						responseData = await manageLmApiRequest.call(this, 'POST', `/tasks/${taskId}/follow-up`, { instruction }, waitQs());
 					} else if (operation === 'get') {
 						const taskId = this.getNodeParameter('taskId', i) as string;
 						responseData = await manageLmApiRequest.call(this, 'GET', `/tasks/${taskId}`);
 					} else if (operation === 'getAll') {
-						const filters = this.getNodeParameter('filters', i, {}) as Record<string, any>;
+						const filters = this.getNodeParameter('filters', i, {}) as IDataObject;
 						const qs: Record<string, string | number> = {};
-						if (filters.agent_id) qs.agent_id = filters.agent_id;
-						if (filters.status) qs.status = filters.status;
-						if (filters.limit) qs.limit = filters.limit;
+						for (const key of ['agent_id', 'status', 'since', 'until', 'limit']) {
+							if (filters[key] !== undefined && filters[key] !== '') qs[key] = filters[key] as string | number;
+						}
 						responseData = await manageLmApiRequest.call(this, 'GET', '/tasks', {}, qs);
 					} else if (operation === 'getChanges') {
 						const taskId = this.getNodeParameter('taskId', i) as string;
 						const fullDiff = this.getNodeParameter('fullDiff', i, false) as boolean;
-						const qs: Record<string, string> = {};
-						if (fullDiff) qs.full_diff = 'true';
-						responseData = await manageLmApiRequest.call(this, 'GET', `/tasks/${taskId}/changes`, {}, qs);
+						responseData = await manageLmApiRequest.call(
+							this, 'GET', `/tasks/${taskId}/changes`, {}, fullDiff ? { full_diff: 'true' } : {},
+						);
 					} else if (operation === 'revert') {
 						const taskId = this.getNodeParameter('taskId', i) as string;
 						responseData = await manageLmApiRequest.call(this, 'POST', `/tasks/${taskId}/revert`);
+					}
+				}
+
+				// ========== SCAN ==========
+				// scanType is the portal route segment: security, inventory, sshkeys, certscan, activity.
+				else if (resource === 'scan') {
+					const scanType = this.getNodeParameter('scanType', i) as string;
+					const agentId = this.getNodeParameter('agentId', i) as string;
+					if (operation === 'get') {
+						responseData = await manageLmApiRequest.call(this, 'GET', `/${scanType}/${agentId}`);
+					} else if (operation === 'trigger') {
+						responseData = await manageLmApiRequest.call(this, 'POST', `/${scanType}/${agentId}`);
+					}
+				}
+
+				// ========== SEARCH ==========
+				// The operation value is the /api/search route segment, except the
+				// 1.0 values mapped in SEARCH_PATHS.
+				else if (resource === 'search') {
+					// Every search operation needs an entry, even an empty one.
+					const mapping = SEARCH_PARAMS[operation];
+					if (!mapping) {
+						throw new NodeOperationError(this.getNode(), `No parameter mapping for search "${operation}"`, { itemIndex: i });
+					}
+					const qs: Record<string, string | number> = {};
+					for (const param of COMMON_SEARCH_PARAMS) {
+						const value = this.getNodeParameter(param, i, '') as string;
+						if (value) qs[param] = value;
+					}
+					for (const [param, key, kind] of mapping) {
+						const value = this.getNodeParameter(param, i, '') as string | number | boolean;
+						if (kind === 'bool') { if (value === true) qs[key] = 'true'; }
+						else if (kind === 'boolFalse') { if (value === false) qs[key] = 'false'; }
+						else if (kind === 'positive') { if (typeof value === 'number' && value > 0) qs[key] = value; }
+						else if (value !== '' && value !== undefined) qs[key] = value as string;
+					}
+					responseData = await manageLmApiRequest.call(this, 'GET', `/search/${SEARCH_PATHS[operation] ?? operation}`, {}, qs);
+				}
+
+				// ========== HOSTING ==========
+				else if (resource === 'hosting') {
+					const connectorId = this.getNodeParameter('connectorId', i) as string;
+					if (operation === 'getActions') {
+						responseData = await manageLmApiRequest.call(this, 'GET', `/connectors/${connectorId}/actions`);
+					} else if (operation === 'runAction') {
+						const resourceId = this.getNodeParameter('resourceId', i) as string;
+						const action = this.getNodeParameter('action', i) as string;
+						const rawParams = this.getNodeParameter('params', i, '{}') as string | IDataObject;
+						let params: IDataObject;
+						try {
+							params = typeof rawParams === 'string' ? JSON.parse(rawParams || '{}') : rawParams;
+						} catch {
+							throw new NodeOperationError(this.getNode(), 'Parameters must be valid JSON', { itemIndex: i });
+						}
+						responseData = await manageLmApiRequest.call(
+							this, 'POST', `/connectors/${connectorId}/actions`, { resource_id: resourceId, action, params },
+						);
 					}
 				}
 
@@ -207,172 +266,8 @@ export class ManageLm implements INodeType {
 				else if (resource === 'skill') {
 					if (operation === 'getAll') {
 						responseData = await manageLmApiRequest.call(this, 'GET', '/skills');
-					} else if (operation === 'get') {
-						const skillId = this.getNodeParameter('skillId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'GET', `/skills/${skillId}`);
 					} else if (operation === 'catalog') {
 						responseData = await manageLmApiRequest.call(this, 'GET', '/skills/catalog');
-					} else if (operation === 'create') {
-						const slug = this.getNodeParameter('slug', i) as string;
-						const name = this.getNodeParameter('name', i) as string;
-						const nodeType = this.getNodeParameter('nodeType', i) as string;
-						const description = this.getNodeParameter('description', i) as string;
-						const systemPrompt = this.getNodeParameter('systemPrompt', i) as string;
-						const allowedCommands = (this.getNodeParameter('allowedCommands', i) as string)
-							.split(',').map((c: string) => c.trim()).filter(Boolean);
-						const operationsJson = this.getNodeParameter('operations', i) as string;
-
-						let ops: Array<{ name: string; description: string }> = [];
-						try {
-							ops = JSON.parse(operationsJson || '[]');
-						} catch {
-							throw new NodeOperationError(this.getNode(), 'Operations must be valid JSON', { itemIndex: i });
-						}
-
-						responseData = await manageLmApiRequest.call(this, 'POST', '/skills', {
-							slug,
-							name,
-							node_type: nodeType,
-							description,
-							skill_definition: {
-								description,
-								operations: ops,
-								allowed_commands: allowedCommands,
-								system_prompt: systemPrompt,
-							},
-						});
-					} else if (operation === 'update') {
-						const skillId = this.getNodeParameter('skillId', i) as string;
-						const updateFields = this.getNodeParameter('updateFields', i, {}) as Record<string, any>;
-						const body: Record<string, any> = {};
-						if (updateFields.name) body.name = updateFields.name;
-						if (updateFields.description) body.description = updateFields.description;
-						if (updateFields.version) body.version = updateFields.version;
-
-						// Build skill_definition if any definition fields are set
-						const hasDef = updateFields.systemPrompt || updateFields.allowedCommands || updateFields.operations;
-						if (hasDef) {
-							const def: Record<string, any> = {};
-							if (updateFields.systemPrompt) def.system_prompt = updateFields.systemPrompt;
-							if (updateFields.allowedCommands) {
-								def.allowed_commands = (updateFields.allowedCommands as string)
-									.split(',').map((c: string) => c.trim()).filter(Boolean);
-							}
-							if (updateFields.operations) {
-								try {
-									def.operations = JSON.parse(updateFields.operations);
-								} catch {
-									throw new NodeOperationError(this.getNode(), 'Operations must be valid JSON', { itemIndex: i });
-								}
-							}
-							if (updateFields.description) def.description = updateFields.description;
-							body.skill_definition = def;
-						}
-
-						responseData = await manageLmApiRequest.call(this, 'PUT', `/skills/${skillId}`, body);
-					} else if (operation === 'delete') {
-						const skillId = this.getNodeParameter('skillId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'DELETE', `/skills/${skillId}`);
-					} else if (operation === 'importCatalog') {
-						const slugs = (this.getNodeParameter('slugs', i) as string)
-							.split(',').map((s: string) => s.trim()).filter(Boolean);
-						responseData = await manageLmApiRequest.call(this, 'POST', '/skills/catalog/import', { slugs });
-					}
-				}
-
-				// ========== GROUP ==========
-				else if (resource === 'group') {
-					if (operation === 'getAll') {
-						responseData = await manageLmApiRequest.call(this, 'GET', '/groups');
-					} else if (operation === 'create') {
-						const name = this.getNodeParameter('name', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'POST', '/groups', { name });
-					} else if (operation === 'update') {
-						const groupId = this.getNodeParameter('groupId', i) as string;
-						const name = this.getNodeParameter('name', i) as string;
-						const body: Record<string, any> = {};
-						if (name) body.name = name;
-						responseData = await manageLmApiRequest.call(this, 'PATCH', `/groups/${groupId}`, body);
-					} else if (operation === 'delete') {
-						const groupId = this.getNodeParameter('groupId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'DELETE', `/groups/${groupId}`);
-					} else if (operation === 'getAgents') {
-						const groupId = this.getNodeParameter('groupId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'GET', `/groups/${groupId}/agents`);
-					} else if (operation === 'setAgents') {
-						const groupId = this.getNodeParameter('groupId', i) as string;
-						const agentIds = (this.getNodeParameter('agentIds', i) as string)
-							.split(',')
-							.map((id) => id.trim())
-							.filter(Boolean);
-						responseData = await manageLmApiRequest.call(
-							this, 'PUT', `/groups/${groupId}/agents`, { agent_ids: agentIds },
-						);
-					} else if (operation === 'addAgents') {
-						const groupId = this.getNodeParameter('groupId', i) as string;
-						const agentIds = (this.getNodeParameter('agentIds', i) as string)
-							.split(',')
-							.map((id) => id.trim())
-							.filter(Boolean);
-						responseData = await manageLmApiRequest.call(
-							this, 'POST', `/groups/${groupId}/agents`, { agent_ids: agentIds },
-						);
-					} else if (operation === 'setSkills') {
-						const groupId = this.getNodeParameter('groupId', i) as string;
-						const skillIds = (this.getNodeParameter('skillIds', i) as string)
-							.split(',')
-							.map((id) => id.trim())
-							.filter(Boolean);
-						responseData = await manageLmApiRequest.call(
-							this, 'PUT', `/groups/${groupId}/skills`, { skill_ids: skillIds },
-						);
-					} else if (operation === 'getMembers') {
-						const groupId = this.getNodeParameter('groupId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'GET', `/groups/${groupId}/members`);
-					} else if (operation === 'setMembers') {
-						const groupId = this.getNodeParameter('groupId', i) as string;
-						const userIds = (this.getNodeParameter('userIds', i) as string)
-							.split(',')
-							.map((id) => id.trim())
-							.filter(Boolean);
-						responseData = await manageLmApiRequest.call(
-							this, 'PUT', `/groups/${groupId}/members`, { user_ids: userIds },
-						);
-					}
-				}
-
-				// ========== SECURITY ==========
-				else if (resource === 'security') {
-					if (operation === 'get') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'GET', `/security/${agentId}`);
-					} else if (operation === 'trigger') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'POST', `/security/${agentId}`);
-					} else if (operation === 'remediate') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						const findingIds = (this.getNodeParameter('findingIds', i) as string)
-							.split(',').map((id) => id.trim()).filter(Boolean);
-						responseData = await manageLmApiRequest.call(
-							this, 'POST', `/security/${agentId}/remediate`, { finding_ids: findingIds },
-						);
-					} else if (operation === 'exportPdf') {
-						const timezone = this.getNodeParameter('timezone', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'GET', '/security/export', {}, { timezone });
-					}
-				}
-
-				// ========== INVENTORY ==========
-				else if (resource === 'inventory') {
-					if (operation === 'get') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'GET', `/inventory/${agentId}`);
-					} else if (operation === 'trigger') {
-						const agentId = this.getNodeParameter('agentId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'POST', `/inventory/${agentId}`);
-					} else if (operation === 'exportPdf') {
-						const timezone = this.getNodeParameter('timezone', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'GET', '/inventory/export', {}, { timezone });
 					}
 				}
 
@@ -380,143 +275,10 @@ export class ManageLm implements INodeType {
 				else if (resource === 'account') {
 					if (operation === 'get') {
 						responseData = await manageLmApiRequest.call(this, 'GET', '/account');
-					} else if (operation === 'update') {
-						const updateFields = this.getNodeParameter('updateFields', i, {}) as Record<string, any>;
-						const body: Record<string, any> = {};
-						if (updateFields.name) body.name = updateFields.name;
-						// Convert empty string schedules to null
-						for (const key of ['audit_report_schedule', 'inventory_report_schedule']) {
-							if (updateFields[key] !== undefined) {
-								body[key] = updateFields[key] || null;
-							}
-						}
-						responseData = await manageLmApiRequest.call(this, 'PATCH', '/account', body);
-					} else if (operation === 'invite') {
-						const email = this.getNodeParameter('email', i) as string;
-						const role = this.getNodeParameter('role', i) as string;
-						const permissions = this.getNodeParameter('permissions', i, {}) as Record<string, boolean>;
-						const body: Record<string, any> = { email, role, ...permissions };
-						responseData = await manageLmApiRequest.call(this, 'POST', '/account/invite', body);
-					}
-				}
-
-				// ========== AUDIT LOG ==========
-				else if (resource === 'audit') {
-					if (operation === 'getAll') {
-						const filters = this.getNodeParameter('filters', i, {}) as Record<string, any>;
-						const qs: Record<string, string | number> = {};
-						if (filters.action) qs.action = filters.action;
-						if (filters.limit) qs.limit = filters.limit;
-						if (filters.offset) qs.offset = filters.offset;
-						responseData = await manageLmApiRequest.call(this, 'GET', '/audit', {}, qs);
-					}
-				}
-
-				// ========== NOTIFICATION ==========
-				else if (resource === 'notification') {
-					if (operation === 'getAll') {
-						responseData = await manageLmApiRequest.call(this, 'GET', '/notifications');
-					} else if (operation === 'markRead') {
-						const idsStr = this.getNodeParameter('notificationIds', i) as string;
-						const body: Record<string, any> = {};
-						if (idsStr) {
-							body.ids = idsStr.split(',').map((id) => id.trim()).filter(Boolean);
-						}
-						responseData = await manageLmApiRequest.call(this, 'POST', '/notifications/read', body);
-					} else if (operation === 'clear') {
-						responseData = await manageLmApiRequest.call(this, 'DELETE', '/notifications');
-					}
-				}
-
-				// ========== REPORT ==========
-				else if (resource === 'report') {
-					if (operation === 'getAll') {
-						const startDate = this.getNodeParameter('startDate', i) as string;
-						const endDate = this.getNodeParameter('endDate', i) as string;
-						const limit = this.getNodeParameter('limit', i, 50) as number;
-						const filters = this.getNodeParameter('filters', i, {}) as Record<string, any>;
-						const qs: Record<string, string | number | boolean> = {
-							start_date: startDate,
-							end_date: endDate,
-							limit,
-						};
-						if (filters.agent_id) qs.agent_id = filters.agent_id;
-						if (filters.mutating_only !== undefined) qs.mutating_only = filters.mutating_only;
-						responseData = await manageLmApiRequest.call(this, 'GET', '/report', {}, qs);
-					} else if (operation === 'exportPdf') {
-						const startDate = this.getNodeParameter('startDate', i) as string;
-						const endDate = this.getNodeParameter('endDate', i) as string;
-						const filters = this.getNodeParameter('filters', i, {}) as Record<string, any>;
-						const qs: Record<string, string | boolean> = {
-							start_date: startDate,
-							end_date: endDate,
-						};
-						if (filters.agent_id) qs.agent_id = filters.agent_id;
-						if (filters.mutating_only !== undefined) qs.mutating_only = filters.mutating_only;
-						responseData = await manageLmApiRequest.call(this, 'GET', '/report/export', {}, qs);
-					}
-				}
-
-				// ========== API KEY ==========
-				else if (resource === 'apiKey') {
-					if (operation === 'getAll') {
-						responseData = await manageLmApiRequest.call(this, 'GET', '/api-keys');
-					} else if (operation === 'create') {
-						const name = this.getNodeParameter('name', i) as string;
-						const permissions = this.getNodeParameter('permissions', i, {}) as Record<string, boolean>;
-						const expiresInDays = this.getNodeParameter('expiresInDays', i) as number;
-						const body: Record<string, any> = { name };
-						if (Object.keys(permissions).length > 0) body.permissions = permissions;
-						if (expiresInDays > 0) body.expires_in_days = expiresInDays;
-						responseData = await manageLmApiRequest.call(this, 'POST', '/api-keys', body);
-					} else if (operation === 'delete') {
-						const apiKeyId = this.getNodeParameter('apiKeyId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'DELETE', `/api-keys/${apiKeyId}`);
-					}
-				}
-
-				// ========== SEARCH ==========
-				else if (resource === 'search') {
-					const query = this.getNodeParameter('query', i, '') as string;
-					const group = this.getNodeParameter('group', i, '') as string;
-					const qs: Record<string, string | number | boolean> = {};
-					if (query) qs.query = query;
-					if (group) qs.group = group;
-
-					if (operation === 'agents') {
-						const status = this.getNodeParameter('status', i, '') as string;
-						const cpuAbove = this.getNodeParameter('cpuAbove', i, 0) as number;
-						const memoryAbove = this.getNodeParameter('memoryAbove', i, 0) as number;
-						const diskAbove = this.getNodeParameter('diskAbove', i, 0) as number;
-						if (status) qs.status = status;
-						if (cpuAbove > 0) qs.cpu_above = cpuAbove;
-						if (memoryAbove > 0) qs.memory_above = memoryAbove;
-						if (diskAbove > 0) qs.disk_above = diskAbove;
-						responseData = await manageLmApiRequest.call(this, 'GET', '/search/agents', {}, qs);
-					} else if (operation === 'inventory') {
-						const category = this.getNodeParameter('category', i, '') as string;
-						const itemStatus = this.getNodeParameter('itemStatus', i, '') as string;
-						if (category) qs.category = category;
-						if (itemStatus) qs.status = itemStatus;
-						responseData = await manageLmApiRequest.call(this, 'GET', '/search/inventory', {}, qs);
-					} else if (operation === 'security') {
-						const severity = this.getNodeParameter('severity', i, '') as string;
-						const findingCategory = this.getNodeParameter('findingCategory', i, '') as string;
-						if (severity) qs.severity = severity;
-						if (findingCategory) qs.category = findingCategory;
-						responseData = await manageLmApiRequest.call(this, 'GET', '/search/security', {}, qs);
-					} else if (operation === 'sshKeys') {
-						const user = this.getNodeParameter('user', i, '') as string;
-						const unknownOnly = this.getNodeParameter('unknownOnly', i, false) as boolean;
-						if (user) qs.user = user;
-						if (unknownOnly) qs.unknown_only = 'true';
-						responseData = await manageLmApiRequest.call(this, 'GET', '/search/ssh-keys', {}, qs);
-					} else if (operation === 'sudoRules') {
-						const user = this.getNodeParameter('user', i, '') as string;
-						const nopasswdOnly = this.getNodeParameter('nopasswdOnly', i, false) as boolean;
-						if (user) qs.user = user;
-						if (nopasswdOnly) qs.nopasswd_only = 'true';
-						responseData = await manageLmApiRequest.call(this, 'GET', '/search/sudo-rules', {}, qs);
+					} else if (operation === 'getGroups') {
+						responseData = await manageLmApiRequest.call(this, 'GET', '/groups');
+					} else if (operation === 'getSites') {
+						responseData = await manageLmApiRequest.call(this, 'GET', '/sites');
 					}
 				}
 
@@ -526,16 +288,6 @@ export class ManageLm implements INodeType {
 						const subject = this.getNodeParameter('subject', i) as string;
 						const body = this.getNodeParameter('body', i) as string;
 						responseData = await manageLmApiRequest.call(this, 'POST', '/email', { subject, body });
-					}
-				}
-
-				// ========== DEPENDENCY ==========
-				else if (resource === 'dependency') {
-					if (operation === 'scan') {
-						responseData = await manageLmApiRequest.call(this, 'POST', '/dependency/scan');
-					} else if (operation === 'getResults') {
-						const scanId = this.getNodeParameter('scanId', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'GET', `/dependency/scan/${scanId}`);
 					}
 				}
 
