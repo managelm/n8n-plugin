@@ -50,11 +50,42 @@ const EVENTS: Array<{ name: string; value: string }> = [
 
 /**
  * How far a delivery's signed `timestamp` may be from now, either way. The
- * portal builds the body once and retries it within about 15 s, so a genuine
- * delivery is always well inside this; a replayed one is not. Wide enough to
- * absorb ordinary clock drift between the portal and n8n.
+ * portal signs the body once and makes up to 3 attempts with it (10 s timeout
+ * each, ~2 s then ~4 s backoff), so a genuine delivery arrives within about
+ * 40 s; a replayed one is refused once this has passed. Wide enough to absorb
+ * ordinary clock drift between the portal and n8n.
  */
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+/**
+ * Deliveries accepted inside that window: key → when it can be forgotten (its
+ * signed timestamp + MAX_CLOCK_SKEW_MS; the timestamp check refuses it from
+ * then on). The signature covers the whole body, timestamp included, so a
+ * repeat is the same delivery again — a replay, or a portal retry after a lost
+ * response — and must not start the workflow twice.
+ *
+ * Per n8n process: with several webhook processes (queue mode) a repeat that
+ * lands on another one is not caught, and only the timestamp bounds it. Capped
+ * so a burst of deliveries cannot grow it without limit; past the cap the
+ * oldest entry goes first.
+ */
+const seenDeliveries = new Map<string, number>();
+const MAX_SEEN_DELIVERIES = 10_000;
+
+/** Remember a delivery. False when it was already seen and has not expired. */
+function isFirstDelivery(key: string, forgetAt: number, now: number): boolean {
+	// Every delivery prunes: at most MAX_SEEN_DELIVERIES entries to walk.
+	for (const [seenKey, seenForgetAt] of seenDeliveries) {
+		if (seenForgetAt < now) seenDeliveries.delete(seenKey);
+	}
+	if (seenDeliveries.has(key)) return false;
+	if (seenDeliveries.size >= MAX_SEEN_DELIVERIES) {
+		// A Map iterates in insertion order: the first key is the oldest.
+		seenDeliveries.delete(seenDeliveries.keys().next().value as string);
+	}
+	seenDeliveries.set(key, forgetAt);
+	return true;
+}
 
 /**
  * Starts a workflow when ManageLM delivers a webhook.
@@ -63,7 +94,8 @@ const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
  * Webhooks), not by this node: API keys cannot manage webhooks. The admin pastes
  * this node's Production URL and a secret there, and the same secret goes into
  * a ManageLM Webhook credential here. Every delivery is HMAC-SHA256 verified
- * against it, and refused when its timestamp is outside the replay window.
+ * against it, refused when its timestamp is outside the replay window, and
+ * acknowledged without a run when it repeats a delivery already accepted.
  */
 export class ManageLmTrigger implements INodeType {
 	description: INodeTypeDescription = {
@@ -145,10 +177,20 @@ export class ManageLmTrigger implements INodeType {
 
 		// The timestamp is part of the signed body, so it is trustworthy now.
 		// Refusing old deliveries keeps a captured one from being replayed.
+		const now = Date.now();
 		const body = (req.body ?? {}) as { event?: string; timestamp?: unknown; data?: IDataObject };
 		const sentAt = typeof body.timestamp === 'string' ? Date.parse(body.timestamp) : NaN;
-		if (Number.isNaN(sentAt) || Math.abs(Date.now() - sentAt) > MAX_CLOCK_SKEW_MS) {
+		if (Number.isNaN(sentAt) || Math.abs(now - sentAt) > MAX_CLOCK_SKEW_MS) {
 			return reject('Missing or stale timestamp');
+		}
+
+		// Inside the window, a delivery already accepted is acknowledged with a
+		// plain 200 and no run (see seenDeliveries). Not a 403: a portal retry is
+		// genuine, and a refusal would count as a failed delivery. Keyed per
+		// trigger node, since two workflows may share one webhook secret.
+		const deliveryKey = `${this.getWorkflow().id ?? ''}:${this.getNode().id}:${signature}`;
+		if (!isFirstDelivery(deliveryKey, sentAt + MAX_CLOCK_SKEW_MS, now)) {
+			return { webhookResponse: 'Duplicate delivery ignored' };
 		}
 
 		// The portal delivers a whole category; filter to the chosen events.

@@ -24,6 +24,18 @@ export const taskOperations: INodeProperties[] = [
 const WAITING_OPS = ['submit', 'answer', 'followUp'];
 
 export const taskFields: INodeProperties[] = [
+	// ------ Get / Get Changes / Revert / Answer / Follow Up ------
+	// First, so Answer and Follow Up name the task before what to send to it.
+	{
+		displayName: 'Task ID',
+		name: 'taskId',
+		type: 'string',
+		required: true,
+		default: '',
+		description: 'ID of the task',
+		displayOptions: { show: { resource: ['task'], operation: ['get', 'getChanges', 'revert', 'answer', 'followUp'] } },
+	},
+
 	// ------ Submit ------
 	{
 		displayName: 'Agent ID',
@@ -81,22 +93,15 @@ export const taskFields: INodeProperties[] = [
 		displayName: 'Max Wait (Seconds)',
 		name: 'waitSeconds',
 		type: 'number',
-		typeOptions: { minValue: 1, maxValue: 300 },
+		// Whole seconds: the portal refuses anything else with a 400. An expression
+		// can still produce 22.5 or 0, so the node checks the value as well.
+		typeOptions: { minValue: 1, maxValue: 300, numberPrecision: 0 },
 		default: 120,
 		description: 'Longest time to wait for the task. Keep it below your n8n HTTP timeout.',
 		displayOptions: { show: { resource: ['task'], operation: WAITING_OPS, wait: [true] } },
 	},
 
-	// ------ Get / Get Changes / Revert / Answer / Follow Up ------
-	{
-		displayName: 'Task ID',
-		name: 'taskId',
-		type: 'string',
-		required: true,
-		default: '',
-		description: 'ID of the task',
-		displayOptions: { show: { resource: ['task'], operation: ['get', 'getChanges', 'revert', 'answer', 'followUp'] } },
-	},
+	// ------ Get Changes ------
 	{
 		displayName: 'Full Diff',
 		name: 'fullDiff',

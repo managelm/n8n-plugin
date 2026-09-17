@@ -37,18 +37,23 @@ export const searchOperations: INodeProperties[] = [
 	},
 ];
 
-/** Operations that accept each common filter. */
-const WITH_QUERY = ['activity', 'agents', 'backups', 'certs', 'pki', 'cloud', 'credentials', 'inventory', 'keystore', 'monitors', 'security', 'sshKeys', 'sudoRules'];
+/**
+ * Operations that accept each common filter. SSH Keys and Sudo Rules take a
+ * query too, with its own definition below (it is not free text there).
+ */
+const WITH_QUERY = ['activity', 'agents', 'backups', 'certs', 'pki', 'cloud', 'credentials', 'inventory', 'keystore', 'monitors', 'security'];
 const WITH_GROUP = ['activity', 'agents', 'certs', 'inventory', 'security', 'sshKeys', 'sudoRules'];
 const WITH_SITE = ['activity', 'agents', 'backups', 'certs', 'pki', 'credentials', 'inventory', 'monitors', 'security', 'sshKeys', 'sudoRules'];
 const WITH_AGENT = ['backups', 'pki', 'credentials', 'keystore', 'monitors'];
 const WITH_TIME = ['activity', 'security'];
-const WITH_USER = ['activity', 'sshKeys', 'sudoRules'];
 
 const show = (operation: string[]) => ({ show: { resource: ['search'], operation } });
 
 export const searchFields: INodeProperties[] = [
 	// ------ Common filters ------
+	// Query and User mean different things per operation, so they are defined
+	// once per meaning under the same name: a saved workflow keeps its value, and
+	// the operation lists never overlap, so only one of each is shown.
 	{
 		displayName: 'Query',
 		name: 'query',
@@ -56,6 +61,22 @@ export const searchFields: INodeProperties[] = [
 		default: '',
 		description: 'Free-text search',
 		displayOptions: show(WITH_QUERY),
+	},
+	{
+		displayName: 'Query',
+		name: 'query',
+		type: 'string',
+		default: '',
+		description: 'Key fingerprint or system username. To find the keys of a ManageLM user, use User.',
+		displayOptions: show(['sshKeys']),
+	},
+	{
+		displayName: 'Query',
+		name: 'query',
+		type: 'string',
+		default: '',
+		description: 'System username. To find the sudo rules of a ManageLM user, use User.',
+		displayOptions: show(['sudoRules']),
 	},
 	{
 		displayName: 'Group',
@@ -86,8 +107,18 @@ export const searchFields: INodeProperties[] = [
 		name: 'user',
 		type: 'string',
 		default: '',
-		description: 'Filter by system username or ManageLM user name/email ("me" for yourself)',
-		displayOptions: show(WITH_USER),
+		description: 'Filter by system username or ManageLM user name or email (partial match)',
+		displayOptions: show(['activity']),
+	},
+	// The portal resolves "me" on these two routes only; on Activity it would be
+	// matched as text inside usernames.
+	{
+		displayName: 'User',
+		name: 'user',
+		type: 'string',
+		default: '',
+		description: 'Filter by ManageLM user name or email, matched through the SSH keys on their profile ("me" for yourself)',
+		displayOptions: show(['sshKeys', 'sudoRules']),
 	},
 	{
 		displayName: 'Since',

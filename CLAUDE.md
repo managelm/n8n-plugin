@@ -19,7 +19,7 @@
 - Follow the n8n community node conventions (INodeType, INodeTypeDescription).
 - API keys reach only the MCP-equivalent portal routes (portal auth/token-surface.ts): no settings, users, keys, webhooks or create/update/delete of agents, skills and groups. Only add operations the portal lists there.
 - The trigger node does not manage webhooks (keys cannot): an admin creates the webhook in the portal with the node's URL and a secret, and the same secret goes into a ManageLM Webhook credential (`manageLmWebhookApi`), never a node parameter.
-- All webhook deliveries are HMAC-verified over the raw body and refused when the signed `timestamp` is more than 5 minutes off. Refusals write their own 403 and return `noWebhookResponse` (a `webhookResponse` would go out as 200).
+- All webhook deliveries are HMAC-verified over the raw body and refused when the signed `timestamp` is more than 5 minutes off. Refusals write their own 403 and return `noWebhookResponse` (a `webhookResponse` would go out as 200). A repeat of a delivery already accepted in that window (same signature, same trigger node) gets a plain 200 without a run; the memory of seen deliveries is per process and capped.
 - Workflows saved with an older release must keep loading: do not rename a parameter or option value that kept its meaning (n8n allows one name under different displayOptions). A removed operation throws; list any unavoidable change in the README's "Upgrading" section.
 
 ## Versioning

@@ -94,7 +94,11 @@ Start a workflow when a ManageLM event occurs. Webhooks are created by an admin 
 3. In the trigger node, create a **ManageLM Webhook** credential with the same secret
 4. Optionally pick the exact events to react to (empty = every event the webhook receives)
 
-Deliveries without a valid signature, or whose signed timestamp is more than 5 minutes off the n8n host's clock, are rejected with `403` and show as failed on the webhook in the portal. Keep the n8n host's clock in sync (NTP).
+Deliveries without a valid signature, or whose signed timestamp is more than 5 minutes off the n8n host's clock, are rejected with `403`. A delivery that repeats one already received in those 5 minutes (a replay, or a portal retry) is acknowledged without starting the workflow again.
+
+**Keep the n8n host's clock synchronized (NTP).** Every rejected delivery counts as a failure on the webhook in the portal, including one refused only because the clocks drifted apart, and the portal disables a webhook after 10 failed deliveries in a row. Once the clock is fixed, re-enable the webhook in **Settings > MCP & API > Webhooks**.
+
+The portal subscribes to categories; tick each one whose events the workflow needs.
 
 | Category | Events |
 |----------|--------|
@@ -107,7 +111,9 @@ Deliveries without a valid signature, or whose signed timestamp is more than 5 m
 | Credential | `credential.rotated`, `credential.rotation_failed` |
 | Keystore | `keystore.access_denied`, `keystore.key_deleted` |
 | Pentest | `pentest.completed`, `pentest.failed` |
-| Sessions | `console.opened`, `console.closed`, `desktop.opened`, `desktop.closed`, `files.opened` |
+| Console sessions | `console.opened`, `console.closed` |
+| Desktop sessions | `desktop.opened`, `desktop.closed` |
+| File sessions | `files.opened` |
 
 ## Example Workflows
 
@@ -142,6 +148,7 @@ This release aligns the node with what ManageLM API keys can reach: the same fea
 - **Security / Inventory moved to Scan** — Get Audit / Get Report become **Scan > Get Result**, Trigger Audit / Trigger Scan become **Scan > Start**, with the matching **Scan Type**
 - **Search Inventory categories** — Service, Package and Hardware no longer exist; pick one of the current categories
 - **Task wait** — Wait for Completion now waits up to Max Wait and then returns the task ID with `still_running: true` instead of failing
+- **Task Get Many status filters** — Pending and Running no longer exist; a running task has the status `sent` (**Sent (Running)**)
 - **ManageLM Trigger** — it no longer creates webhooks. Create one in the portal and a ManageLM Webhook credential as described above, then delete the webhooks 1.0.x created (Settings > MCP & API > Webhooks)
 
 ## Development

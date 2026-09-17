@@ -148,9 +148,21 @@ export class ManageLm implements INodeType {
 				// Tasks that dispatch to an agent can wait for the outcome. The portal
 				// waits at most wait_seconds and then answers 202 with the task ID
 				// (still_running: true) instead of holding the request open.
+				// wait_seconds must be a positive integer or the portal answers 400; the
+				// UI only allows those, but an expression can yield 22.5, 0 or text.
 				const waitQs = (): Record<string, number> => {
 					const wait = this.getNodeParameter('wait', i, true) as boolean;
-					return wait ? { wait_seconds: this.getNodeParameter('waitSeconds', i, 120) as number } : {};
+					if (!wait) return {};
+					const raw = this.getNodeParameter('waitSeconds', i, 120);
+					const seconds = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : raw;
+					if (typeof seconds !== 'number' || !Number.isInteger(seconds) || seconds < 1) {
+						throw new NodeOperationError(
+							this.getNode(),
+							`Max Wait must be a whole number of seconds, 1 or more (got ${JSON.stringify(raw)})`,
+							{ itemIndex: i },
+						);
+					}
+					return { wait_seconds: seconds };
 				};
 
 				// ========== AGENT ==========
