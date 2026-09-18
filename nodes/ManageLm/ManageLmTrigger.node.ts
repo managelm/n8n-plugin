@@ -43,6 +43,8 @@ const EVENTS: Array<{ name: string; value: string }> = [
 	{ name: 'Report Completed', value: 'report.completed' },
 	{ name: 'Report Failed', value: 'report.failed' },
 	{ name: 'Report Stalled', value: 'report.stalled' },
+	{ name: 'Scheduled Task Failed', value: 'schedule.failed' },
+	{ name: 'Scheduled Task Reported', value: 'schedule.report' },
 	{ name: 'Task Completed', value: 'task.completed' },
 	{ name: 'Task Failed', value: 'task.failed' },
 	{ name: 'Task Needs Input', value: 'task.needs_input' },

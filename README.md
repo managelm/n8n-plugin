@@ -105,6 +105,7 @@ The portal subscribes to categories; tick each one whose events the workflow nee
 | Agent | `agent.enrolled`, `agent.approved`, `agent.online`, `agent.offline` |
 | Task | `task.completed`, `task.failed`, `task.needs_input` |
 | Report | `report.completed`, `report.failed`, `report.stalled` |
+| Schedules | `schedule.report`, `schedule.failed` |
 | Monitor | `monitor.down`, `monitor.up`, `monitor.stalled`, `monitor.created`, `monitor.deleted` |
 | Backup | `backup.completed`, `backup.failed` |
 | Certificate | `cert.issued`, `cert.renewed`, `cert.renewal_failed`, `cert.revoked`, `cert.reactivated`, `cert.deleted` |
