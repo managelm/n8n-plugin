@@ -23,7 +23,7 @@
 
 ---
 
-The `n8n-nodes-managelm` community node brings ManageLM into n8n. Run tasks and scans on your servers, search the whole fleet, act on hosting resources, and react to events — the same features ManageLM exposes to Claude through MCP.
+The `n8n-nodes-managelm` community node brings ManageLM into n8n. Run tasks and scans on your servers, search the whole fleet, act on hosting resources, and react to events — the same features ManageLM exposes to Claude through MCP, except the search of scheduled tasks.
 
 ## Features
 
@@ -79,7 +79,7 @@ Drag the **ManageLM** node into your canvas and pick an action.
 | **Account** | Get, Get Groups, Get Sites |
 | **Email** | Send |
 
-**Waiting for tasks.** Submit, Answer and Follow Up wait up to **Max Wait** seconds (default 120). A task that is still running then comes back as `{ task_id, still_running: true }` — loop on **Task > Get** until its status is `completed`, `failed`, `needs_input` or `timeout` (a task that never reports back is marked `timeout` after 10 minutes).
+**Waiting for tasks.** Submit, Answer and Follow Up wait up to **Max Wait** seconds (default 120). A task that is still running then comes back as `{ task_id, still_running: true }` — loop on **Task > Get** until its status is `completed`, `failed`, `needs_input` or `timeout` (a task that never reports back is marked `timeout` after 15 minutes, or up to 25 minutes on servers set to a higher LLM resource level).
 
 **Search results.** A search, or a Get Many, returns one item holding the result array — for example `agents` for Search Agents, `items` for Search Inventory, `findings` for Search Security. Add a **Split Out** node on that field to handle the rows one by one.
 
@@ -94,7 +94,7 @@ Start a workflow when a ManageLM event occurs. Webhooks are created by an admin 
 3. In the trigger node, create a **ManageLM Webhook** credential with the same secret
 4. Optionally pick the exact events to react to (empty = every event the webhook receives)
 
-Deliveries without a valid signature, or whose signed timestamp is more than 5 minutes off the n8n host's clock, are rejected with `403`. A delivery that repeats one already received in those 5 minutes (a replay, or a portal retry) is acknowledged without starting the workflow again.
+Deliveries without a valid signature, or whose signed timestamp is more than 5 minutes off the n8n host's clock, are rejected with `403`. A delivery that repeats one already received in those 5 minutes (a replay, or a portal retry) is acknowledged without starting the workflow again. Each n8n process remembers only the deliveries it received: in queue mode with several webhook processes, a repeat that reaches another process can start the workflow a second time.
 
 **Keep the n8n host's clock synchronized (NTP).** Every rejected delivery counts as a failure on the webhook in the portal, including one refused only because the clocks drifted apart, and the portal disables a webhook after 10 failed deliveries in a row. Once the clock is fixed, re-enable the webhook in **Settings > MCP & API > Webhooks**.
 
@@ -138,7 +138,7 @@ The portal subscribes to categories; tick each one whose events the workflow nee
 
 ## Upgrading from 1.0.x
 
-This release aligns the node with what ManageLM API keys can reach: the same features as MCP. Workflows saved with 1.0.x keep their parameters, with these exceptions:
+Version 1.0.3 aligns the node with what ManageLM API keys can reach: the same features as MCP. Workflows saved with 1.0.0 to 1.0.2 keep their parameters, with these exceptions:
 
 - **Removed operations** — they stop with an error naming the operation; pick a current one:
   - Agent: Approve, Update, Delete, Assign / Remove Skill, Get Metrics, Get Stats
@@ -150,7 +150,7 @@ This release aligns the node with what ManageLM API keys can reach: the same fea
 - **Search Inventory categories** — Service, Package and Hardware no longer exist; pick one of the current categories
 - **Task wait** — Wait for Completion now waits up to Max Wait and then returns the task ID with `still_running: true` instead of failing
 - **Task Get Many status filters** — Pending and Running no longer exist; a running task has the status `sent` (**Sent (Running)**)
-- **ManageLM Trigger** — it no longer creates webhooks. Create one in the portal and a ManageLM Webhook credential as described above, then delete the webhooks 1.0.x created (Settings > MCP & API > Webhooks)
+- **ManageLM Trigger** — it no longer creates webhooks. Create one in the portal and a ManageLM Webhook credential as described above, then delete the webhooks that 1.0.0 to 1.0.2 created (Settings > MCP & API > Webhooks)
 
 ## Development
 
