@@ -27,7 +27,7 @@ The `n8n-nodes-managelm` community node brings ManageLM into n8n. Run tasks and 
 
 ## Features
 
-- **34 actions** — tasks, scans, 14 fleet searches, hosting actions, agents, skills, account, email
+- **33 actions** — tasks, scans, 14 fleet searches, hosting actions, agents, skills, account
 - **Event triggers** — start workflows on any ManageLM event: agents, tasks, reports, monitors, backups, certificates, credentials, keystore, pentests, console / desktop / file sessions
 - **HMAC-verified webhooks** — every delivery is checked against your webhook secret, and old deliveries are refused
 - **Wait for completion** — wait for a task up to a limit you choose; longer tasks return their ID to poll
@@ -77,7 +77,6 @@ Drag the **ManageLM** node into your canvas and pick an action.
 | **Agent** | Get Many, Get, Get Skills |
 | **Skill** | Get Many, Get Catalog |
 | **Account** | Get, Get Groups, Get Sites |
-| **Email** | Send |
 
 **Waiting for tasks.** Submit, Answer and Follow Up wait up to **Max Wait** seconds (default 120). A task that is still running then comes back as `{ task_id, still_running: true }` — loop on **Task > Get** until its status is `completed`, `failed`, `needs_input` or `timeout` (a task that never reports back is marked `timeout` after 15 minutes, or up to 25 minutes on servers set to a higher LLM resource level).
 

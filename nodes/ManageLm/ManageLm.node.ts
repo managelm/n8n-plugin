@@ -18,7 +18,6 @@ import { searchOperations, searchFields } from './descriptions/SearchDescription
 import { hostingOperations, hostingFields } from './descriptions/HostingDescription';
 import { skillOperations, skillFields } from './descriptions/SkillDescription';
 import { accountOperations, accountFields } from './descriptions/AccountDescription';
-import { emailOperations, emailFields } from './descriptions/EmailDescription';
 
 /**
  * Node parameter → query-string key, per search operation. Common filters
@@ -57,7 +56,7 @@ const COMMON_SEARCH_PARAMS = ['query', 'group', 'site', 'agent', 'user', 'since'
  * must fail loudly rather than output an empty item.
  */
 const OPERATIONS: Record<string, string[]> = Object.fromEntries(
-	[agentOperations, taskOperations, scanOperations, searchOperations, hostingOperations, skillOperations, accountOperations, emailOperations]
+	[agentOperations, taskOperations, scanOperations, searchOperations, hostingOperations, skillOperations, accountOperations]
 		.map(([selector]: INodeProperties[]) => [
 			(selector.displayOptions?.show?.resource as string[])[0],
 			(selector.options as INodePropertyOptions[]).map((option) => option.value as string),
@@ -96,7 +95,6 @@ export class ManageLm implements INodeType {
 				options: [
 					{ name: 'Account', value: 'account' },
 					{ name: 'Agent', value: 'agent' },
-					{ name: 'Email', value: 'email' },
 					{ name: 'Hosting', value: 'hosting' },
 					{ name: 'Scan', value: 'scan' },
 					{ name: 'Search', value: 'search' },
@@ -120,8 +118,6 @@ export class ManageLm implements INodeType {
 			...skillFields,
 			...accountOperations,
 			...accountFields,
-			...emailOperations,
-			...emailFields,
 		],
 	};
 
@@ -291,15 +287,6 @@ export class ManageLm implements INodeType {
 						responseData = await manageLmApiRequest.call(this, 'GET', '/groups');
 					} else if (operation === 'getSites') {
 						responseData = await manageLmApiRequest.call(this, 'GET', '/sites');
-					}
-				}
-
-				// ========== EMAIL ==========
-				else if (resource === 'email') {
-					if (operation === 'send') {
-						const subject = this.getNodeParameter('subject', i) as string;
-						const body = this.getNodeParameter('body', i) as string;
-						responseData = await manageLmApiRequest.call(this, 'POST', '/email', { subject, body });
 					}
 				}
 
