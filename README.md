@@ -80,7 +80,9 @@ Drag the **ManageLM** node into your canvas and pick an action.
 
 **Waiting for tasks.** Submit, Answer and Follow Up wait up to **Max Wait** seconds (default 120). A task that is still running then comes back as `{ task_id, still_running: true }` — loop on **Task > Get** until its status is `completed`, `failed`, `needs_input` or `timeout` (a task that never reports back is marked `timeout` after 15 minutes, or up to 25 minutes on servers set to a higher LLM resource level).
 
-**Search results.** A search, or a Get Many, returns one item holding the result array — for example `agents` for Search Agents, `items` for Search Inventory, `findings` for Search Security. Add a **Split Out** node on that field to handle the rows one by one.
+**Search results.** A search returns one item holding the result array in `rows`, with `truncated: true` when more rows match than the 500 a search lists (narrow the filters to see the rest). Search Security and Search SSH Keys add `counts` per source, and tag each row with its `source`. Add a **Split Out** node on `rows` to handle the rows one by one. A Get Many holds its array under the resource's name (`agents`, `tasks`, `skills`).
+
+Portals before 1.6.14 returned the rows under a key per search (`agents`, `items`, `findings`, `activity`, `rules`, `certs`, `certificates`, `monitors`, `backups`, `credentials`, `connectors`, `resources`, and `registered_keys` / `deployed_keys` for SSH keys). Workflows that read those keys must read `rows` once the portal is upgraded. Two row fields were renamed as well: `server` is now `agent` on SSH key and sudo rule rows, and `linux_user` is now `system_user` on activity rows.
 
 **Hosting actions.** Run Action executes as soon as the node runs, with no confirmation step — including disruptive actions such as stop, shutdown and reboot.
 
@@ -127,13 +129,13 @@ The portal subscribes to categories; tick each one whose events the workflow nee
 1. Schedule Trigger (weekly) > Task Submit (`packages`, "Update all packages")
 
 **Inventory to Google Sheets:**
-1. Schedule (daily) > Search Inventory > Split Out (`items`) > Append to Sheets
+1. Schedule (daily) > Search Inventory > Split Out (`rows`) > Append to Sheets
 
 **Ticket on a failed backup or rotation:**
 1. ManageLM Trigger (`backup.failed`, `credential.rotation_failed`) > Jira / ServiceNow
 
 **Find servers with high disk:**
-1. Search Agents (`Disk Above % = 80`) > Split Out (`agents`) > Notify for each server
+1. Search Agents (`Disk Above % = 80`) > Split Out (`rows`) > Notify for each server
 
 ## Upgrading from 1.0.x
 
